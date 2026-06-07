@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/homeFragment">
+
+    <!-- 홈 탭 -->
+    <fragment
+        android:id="@+id/homeFragment"
+        android:name="com.jsm.nsnd.ui.home.HomeFragment"
+        android:label="@string/nav_home"
+        tools:layout="@layout/fragment_home" />
+
+    <!-- 연락 보내기 설정 탭 -->
+    <fragment
+        android:id="@+id/contactFragment"
+        android:name="com.jsm.nsnd.ui.contact.ContactFragment"
+        android:label="@string/nav_contact"
+        tools:layout="@layout/fragment_contact" />
+
+    <!-- 마사지기 강도 설정 탭 -->
+    <fragment
+        android:id="@+id/massagerFragment"
+        android:name="com.jsm.nsnd.ui.massager.MassagerFragment"
+        android:label="@string/nav_massager"
+        tools:layout="@layout/fragment_massager" />
+
+    <!-- 수면 데이터 탭 -->
+    <fragment
+        android:id="@+id/sleepDataFragment"
+        android:name="com.jsm.nsnd.ui.sleepdata.SleepDataFragment"
+        android:label="@string/nav_sleep"
+        tools:layout="@layout/fragment_sleep_data" />
+
+</navigation>

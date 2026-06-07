@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/homeFragment"
+        android:icon="@android:drawable/ic_menu_compass"
+        android:title="@string/nav_home" />
+
+    <item
+        android:id="@+id/contactFragment"
+        android:icon="@android:drawable/ic_menu_send"
+        android:title="@string/nav_contact" />
+
+    <item
+        android:id="@+id/massagerFragment"
+        android:icon="@android:drawable/ic_menu_manage"
+        android:title="@string/nav_massager" />
+
+    <item
+        android:id="@+id/sleepDataFragment"
+        android:icon="@android:drawable/ic_menu_recent_history"
+        android:title="@string/nav_sleep" />
+
+</menu>

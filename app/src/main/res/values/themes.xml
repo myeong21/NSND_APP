@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <style name="Base.Theme.NSND" parent="Theme.Material3.DayNight.NoActionBar">
+
+        <item name="android:windowBackground">@color/light_bg_primary</item>
+        <item name="colorSurface">@color/light_bg_secondary</item>
+        <item name="colorOnSurface">@color/light_text_primary</item>
+        <item name="colorPrimary">@color/accent_primary</item>
+        <item name="colorOnPrimary">@color/light_bg_secondary</item>
+        <item name="colorSecondary">@color/accent_light</item>
+        <item name="android:textColorPrimary">@color/light_text_primary</item>
+        <item name="android:textColorSecondary">@color/light_text_secondary</item>
+        <item name="android:textColorHint">@color/light_text_hint</item>
+        <item name="android:statusBarColor">@color/light_bg_primary</item>
+        <item name="android:navigationBarColor">@color/light_nav_bg</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
+
+        <!-- 라이트 모드 속성 연결 -->
+        <item name="bg_primary">@color/light_bg_primary</item>
+        <item name="bg_secondary">@color/light_bg_secondary</item>
+        <item name="bg_card">@color/light_bg_card</item>
+        <item name="bg_card_elevated">@color/light_bg_card_elevated</item>
+        <item name="text_primary">@color/light_text_primary</item>
+        <item name="text_secondary">@color/light_text_secondary</item>
+        <item name="text_hint">@color/light_text_hint</item>
+        <item name="divider_color">@color/light_divider</item>
+        <item name="border_color">@color/light_border</item>
+        <item name="nav_bg">@color/light_nav_bg</item>
+        <item name="nav_active">@color/light_nav_active</item>
+        <item name="nav_inactive">@color/light_nav_inactive</item>
+
+    </style>
+
+    <style name="Theme.NSND" parent="Base.Theme.NSND" />
+
+    <style name="Theme.NSND.Alert" parent="Base.Theme.NSND">
+        <item name="android:windowBackground">@color/alert_red</item>
+        <item name="android:statusBarColor">@color/alert_red</item>
+        <item name="android:navigationBarColor">@color/alert_red</item>
+    </style>
+
+    <style name="Widget.NSND.ThemeChip" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">@color/light_text_secondary</item>
+        <item name="cornerRadius">8dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+    </style>
+
+</resources>

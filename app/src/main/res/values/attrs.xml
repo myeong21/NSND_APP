@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <attr name="bg_primary" format="color" />
+    <attr name="bg_secondary" format="color" />
+    <attr name="bg_card" format="color" />
+    <attr name="bg_card_elevated" format="color" />
+    <attr name="text_primary" format="color" />
+    <attr name="text_secondary" format="color" />
+    <attr name="text_hint" format="color" />
+    <attr name="divider_color" format="color" />
+    <attr name="border_color" format="color" />
+    <attr name="nav_bg" format="color" />
+    <attr name="nav_active" format="color" />
+    <attr name="nav_inactive" format="color" />
+</resources>

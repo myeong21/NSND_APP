@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/alert_red"
+    tools:context=".ui.overlay.AlertOverlayActivity">
+
+    <!-- 배경 깜빡임 효과용 오버레이 -->
+    <View
+        android:id="@+id/viewFlash"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#33000000"
+        android:visibility="gone" />
+
+    <!-- 중앙 컨텐츠 -->
+    <LinearLayout
+        android:id="@+id/layoutCenter"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <!-- 회전 경고 아이콘 링 -->
+        <FrameLayout
+            android:layout_width="140dp"
+            android:layout_height="140dp"
+            android:layout_marginBottom="28dp">
+
+            <ImageView
+                android:id="@+id/ivRotatingRing"
+                android:layout_width="140dp"
+                android:layout_height="140dp"
+                android:src="@drawable/ic_warning_ring"
+                android:layout_gravity="center"
+                android:contentDescription="경고 링" />
+
+            <ImageView
+                android:id="@+id/ivWarningIcon"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:src="@android:drawable/ic_dialog_alert"
+                android:tint="#FFFFFF"
+                android:layout_gravity="center"
+                android:contentDescription="경고" />
+
+        </FrameLayout>
+
+        <!-- 경보 타이틀 -->
+        <TextView
+            android:id="@+id/tvAlertTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/alert_title"
+            android:textColor="#FFFFFF"
+            android:textSize="32sp"
+            android:fontFamily="sans-serif-medium"
+            android:layout_marginBottom="10dp" />
+
+        <!-- 단계 텍스트 -->
+        <TextView
+            android:id="@+id/tvAlertStage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#CCFFFFFF"
+            android:textSize="16sp"
+            android:layout_marginBottom="8dp"
+            tools:text="1단계 경보" />
+
+        <!-- 단계 설명 -->
+        <TextView
+            android:id="@+id/tvAlertDescription"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#99FFFFFF"
+            android:textSize="13sp"
+            android:gravity="center"
+            android:layout_marginBottom="48dp"
+            tools:text="경보음이 울리고 있습니다" />
+
+    </LinearLayout>
+
+    <!-- 단계 인디케이터 -->
+    <LinearLayout
+        android:id="@+id/layoutStageIndicator"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        app:layout_constraintBottom_toTopOf="@id/btnDismiss"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginBottom="24dp" />
+
+    <!-- 확인 버튼 -->
+    <Button
+        android:id="@+id/btnDismiss"
+        android:layout_width="200dp"
+        android:layout_height="52dp"
+        android:text="@string/alert_dismiss"
+        android:textSize="16sp"
+        android:fontFamily="sans-serif-medium"
+        android:textColor="@color/alert_red"
+        android:backgroundTint="#FFFFFF"
+        android:layout_marginBottom="48dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <color name="bg_primary">#111318</color>
+    <color name="bg_secondary">#1C1E26</color>
+    <color name="bg_card">#23262F</color>
+    <color name="bg_card_elevated">#2A2D38</color>
+    <color name="text_primary">#F0F2FF</color>
+    <color name="text_secondary">#9DA3B4</color>
+    <color name="text_hint">#555A6E</color>
+    <color name="divider">#2A2D38</color>
+    <color name="border">#32364A</color>
+    <color name="nav_bg">#1C1E26</color>
+    <color name="nav_active">#4D8EFF</color>
+    <color name="nav_inactive">#555A6E</color>
+
+</resources>

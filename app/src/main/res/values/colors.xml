@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- 포인트 컬러 (라이트/다크 공통) -->
+    <color name="accent_primary">#1A6BFF</color>
+    <color name="accent_secondary">#D6E4FF</color>
+    <color name="accent_light">#5B8FFF</color>
+
+    <!-- 경보 컬러 (공통) -->
+    <color name="alert_red">#FF3B3B</color>
+    <color name="alert_red_bg">#FFE5E5</color>
+    <color name="alert_red_light">#FF6B6B</color>
+
+    <!-- 상태 컬러 (공통) -->
+    <color name="status_safe">#1A8A4A</color>
+    <color name="status_safe_bg">#E6F5ED</color>
+    <color name="status_warn">#C47A00</color>
+    <color name="status_warn_bg">#FFF3D6</color>
+    <color name="status_danger">#FF3B3B</color>
+    <color name="status_danger_bg">#FFE5E5</color>
+
+    <!-- 수면 단계 컬러 (공통) -->
+    <color name="stage_1">#C47A00</color>
+    <color name="stage_1_bg">#FFF3D6</color>
+    <color name="stage_2">#D45500</color>
+    <color name="stage_2_bg">#FFE8D6</color>
+    <color name="stage_3">#FF3B3B</color>
+    <color name="stage_3_bg">#FFE5E5</color>
+
+    <!-- ============================================ -->
+    <!-- 라이트 모드 색상 -->
+    <!-- ============================================ -->
+    <color name="light_bg_primary">#F5F7FA</color>
+    <color name="light_bg_secondary">#FFFFFF</color>
+    <color name="light_bg_card">#FFFFFF</color>
+    <color name="light_bg_card_elevated">#F0F2F5</color>
+    <color name="light_text_primary">#111827</color>
+    <color name="light_text_secondary">#6B7280</color>
+    <color name="light_text_hint">#9CA3AF</color>
+    <color name="light_divider">#E5E7EB</color>
+    <color name="light_border">#D1D5DB</color>
+    <color name="light_nav_bg">#FFFFFF</color>
+    <color name="light_nav_active">#1A6BFF</color>
+    <color name="light_nav_inactive">#9CA3AF</color>
+
+    <!-- ============================================ -->
+    <!-- 다크 모드 색상 -->
+    <!-- ============================================ -->
+    <color name="dark_bg_primary">#111318</color>
+    <color name="dark_bg_secondary">#1C1E26</color>
+    <color name="dark_bg_card">#23262F</color>
+    <color name="dark_bg_card_elevated">#2A2D38</color>
+    <color name="dark_text_primary">#F0F2FF</color>
+    <color name="dark_text_secondary">#9DA3B4</color>
+    <color name="dark_text_hint">#555A6E</color>
+    <color name="dark_divider">#2A2D38</color>
+    <color name="dark_border">#32364A</color>
+    <color name="dark_nav_bg">#1C1E26</color>
+    <color name="dark_nav_active">#4D8EFF</color>
+    <color name="dark_nav_inactive">#555A6E</color>
+
+    <!-- drawable, color 파일 호환용 별칭 -->
+    <color name="bg_primary">@color/light_bg_primary</color>
+    <color name="bg_secondary">@color/light_bg_secondary</color>
+    <color name="bg_card">@color/light_bg_card</color>
+    <color name="bg_card_elevated">@color/light_bg_card_elevated</color>
+    <color name="divider">@color/light_divider</color>
+    <color name="border">@color/light_border</color>
+    <color name="nav_bg">@color/light_nav_bg</color>
+    <color name="nav_active">@color/light_nav_active</color>
+    <color name="nav_inactive">@color/light_nav_inactive</color>
+
+    <color name="text_primary">@color/light_text_primary</color>
+    <color name="text_secondary">@color/light_text_secondary</color>
+    <color name="text_hint">@color/light_text_hint</color>
+</resources>

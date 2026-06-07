@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <style name="Base.Theme.NSND" parent="Theme.Material3.DayNight.NoActionBar">
+
+        <item name="android:windowBackground">@color/dark_bg_primary</item>
+        <item name="colorSurface">@color/dark_bg_secondary</item>
+        <item name="colorOnSurface">@color/dark_text_primary</item>
+        <item name="colorPrimary">@color/dark_nav_active</item>
+        <item name="colorOnPrimary">@color/dark_text_primary</item>
+        <item name="colorSecondary">@color/accent_light</item>
+        <item name="android:textColorPrimary">@color/dark_text_primary</item>
+        <item name="android:textColorSecondary">@color/dark_text_secondary</item>
+        <item name="android:textColorHint">@color/dark_text_hint</item>
+        <item name="android:statusBarColor">@color/dark_bg_primary</item>
+        <item name="android:navigationBarColor">@color/dark_nav_bg</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+
+        <!-- 다크 모드 속성 연결 -->
+        <item name="bg_primary">@color/dark_bg_primary</item>
+        <item name="bg_secondary">@color/dark_bg_secondary</item>
+        <item name="bg_card">@color/dark_bg_card</item>
+        <item name="bg_card_elevated">@color/dark_bg_card_elevated</item>
+        <item name="text_primary">@color/dark_text_primary</item>
+        <item name="text_secondary">@color/dark_text_secondary</item>
+        <item name="text_hint">@color/dark_text_hint</item>
+        <item name="divider_color">@color/dark_divider</item>
+        <item name="border_color">@color/dark_border</item>
+        <item name="nav_bg">@color/dark_nav_bg</item>
+        <item name="nav_active">@color/dark_nav_active</item>
+        <item name="nav_inactive">@color/dark_nav_inactive</item>
+
+    </style>
+
+</resources>
