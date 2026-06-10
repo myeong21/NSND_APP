@@ -14,12 +14,19 @@ object ApiClient {
         })
         .build()
 
-    val contactApi: ContactApi by lazy {
+    private val retrofit: Retrofit by lazy {
         Retrofit.Builder()
             .baseUrl(BASE_URL)
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-            .create(ContactApi::class.java)
+    }
+
+    val contactApi: ContactApi by lazy {
+        retrofit.create(ContactApi::class.java)
+    }
+
+    val authApi: AuthApi by lazy {
+        retrofit.create(AuthApi::class.java)
     }
 }

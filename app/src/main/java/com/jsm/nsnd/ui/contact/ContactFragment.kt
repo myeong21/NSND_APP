@@ -19,6 +19,9 @@ import android.telephony.SmsManager
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 
+import androidx.fragment.app.activityViewModels
+import com.jsm.nsnd.ui.SharedContactViewModel
+
 class ContactFragment : Fragment() {
 
     private var _binding: FragmentContactBinding? = null
@@ -26,6 +29,7 @@ class ContactFragment : Fragment() {
 
     private val contactList = mutableListOf<ContactItem>()
     private lateinit var adapter: ContactAdapter
+    private val sharedViewModel: SharedContactViewModel by activityViewModels()
 
     private val smsPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -227,8 +231,8 @@ class ContactFragment : Fragment() {
             binding.tvContactEmpty.visibility = View.GONE
             binding.rvContacts.visibility = View.VISIBLE
         }
-        // 삭제 버튼 상태 업데이트 (1개 남으면 비활성화)
         adapter.notifyDataSetChanged()
+        sharedViewModel.contacts.value = contactList.toList()  // 추가
     }
 
     override fun onDestroyView() {

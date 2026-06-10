@@ -31,7 +31,7 @@ class SleepDataFragment : Fragment() {
     private var selectedCalendar = Calendar.getInstance()
 
     // TODO: 로그인 연동 후 SharedPreferences에서 토큰 가져오기
-    private val token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZXhwIjoxNzgwNDAxOTE3fQ.udG-G5QUfXkGEV0CA5S8xSahKNYVo2zGGb5SoAVuGGM"
+    private val token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZXhwIjoxNzgxMTU0MDQ1fQ.YHd5rLFJbDlwNOakPiyw9FOeN2UDCBs4dEbuiWqgKv4"
 
     override fun onCreateView(
         inflater: LayoutInflater,

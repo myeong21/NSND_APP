@@ -22,22 +22,10 @@
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.NSND">
 
-        <!--
-        =====================================================
-        TODO: 인증 기능 완성 후 런처를 LoginActivity로 교체
-        현재: 개발 편의를 위해 MainActivity를 바로 진입점으로 설정
-        =====================================================
-        -->
         <activity
             android:name=".ui.main.MainActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:exported="false" />
 
-        <!-- TODO: 인증 기능 완성 후 아래 주석 해제
         <activity
             android:name=".ui.auth.LoginActivity"
             android:exported="true"
@@ -47,12 +35,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        -->
 
-        <activity
-            android:name=".ui.auth.LoginActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".ui.auth.SignUpActivity"

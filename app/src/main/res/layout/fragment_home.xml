@@ -180,6 +180,7 @@
                     app:layout_constraintBottom_toTopOf="@id/btnTestAlert"
                     app:layout_constraintStart_toStartOf="parent" />
 
+                <!-- 변경 후: (btnTestAlert constraint 수정 + btnStop 추가) -->
                 <!-- 임시 경보 테스트 버튼 - 개발 완료 후 제거 -->
                 <Button
                     android:id="@+id/btnTestAlert"
@@ -189,6 +190,20 @@
                     android:textSize="11sp"
                     android:backgroundTint="@color/alert_red"
                     android:textColor="#FFFFFF"
+                    android:layout_marginBottom="4dp"
+                    app:layout_constraintBottom_toTopOf="@id/btnStop"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent" />
+
+                <!-- 작동 종료 버튼 -->
+                <Button
+                    android:id="@+id/btnStop"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:text="작동 종료"
+                    android:textSize="11sp"
+                    android:backgroundTint="@color/dark_bg_card"
+                    android:textColor="@color/text_secondary"
                     android:layout_marginBottom="8dp"
                     app:layout_constraintBottom_toBottomOf="parent"
                     app:layout_constraintStart_toStartOf="parent"

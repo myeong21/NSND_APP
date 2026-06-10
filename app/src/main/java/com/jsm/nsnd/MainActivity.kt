@@ -13,16 +13,27 @@ import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.setupWithNavController
 import com.jsm.nsnd.R
 import com.jsm.nsnd.databinding.ActivityMainBinding
+import android.content.Intent
+import android.widget.Toast
+import com.jsm.nsnd.data.api.ApiClient
+import com.jsm.nsnd.data.session.SessionManager
+import com.jsm.nsnd.ui.auth.LoginActivity
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var navController: NavController
 
+    private lateinit var sessionManager: SessionManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        sessionManager = SessionManager(this)
 
         setupNavigation()
         setupSidebar()
@@ -130,8 +141,9 @@ class MainActivity : AppCompatActivity() {
                 .setTitle(getString(R.string.sidebar_logout))
                 .setMessage(getString(R.string.sidebar_logout_confirm))
                 .setPositiveButton(getString(R.string.confirm)) { _, _ ->
-                    // TODO: 로그인 연동 후 로그아웃 처리 및 LoginActivity로 이동
-                    binding.drawerLayout.closeDrawer(binding.sidebarLayout)
+                    sessionManager.clear()
+                    startActivity(Intent(this, LoginActivity::class.java))
+                    finish()
                 }
                 .setNegativeButton(getString(R.string.cancel), null)
                 .show()
@@ -142,8 +154,22 @@ class MainActivity : AppCompatActivity() {
                 .setTitle(getString(R.string.sidebar_withdraw))
                 .setMessage(getString(R.string.sidebar_withdraw_confirm))
                 .setPositiveButton(getString(R.string.confirm)) { _, _ ->
-                    // TODO: 로그인 연동 후 회원탈퇴 처리 및 LoginActivity로 이동
-                    binding.drawerLayout.closeDrawer(binding.sidebarLayout)
+                    ApiClient.authApi.deleteMe(sessionManager.getAuthHeader())
+                        .enqueue(object : Callback<Void> {
+                            override fun onResponse(call: Call<Void>, response: Response<Void>) {
+                                if (response.isSuccessful) {
+                                    sessionManager.clear()
+                                    startActivity(Intent(this@MainActivity, LoginActivity::class.java))
+                                    finish()
+                                } else {
+                                    Toast.makeText(this@MainActivity, "회원탈퇴에 실패했습니다", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+
+                            override fun onFailure(call: Call<Void>, t: Throwable) {
+                                Toast.makeText(this@MainActivity, "서버 연결에 실패했습니다", Toast.LENGTH_SHORT).show()
+                            }
+                        })
                 }
                 .setNegativeButton(getString(R.string.cancel), null)
                 .show()

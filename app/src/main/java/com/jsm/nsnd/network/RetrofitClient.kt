@@ -9,8 +9,9 @@ object RetrofitClient {
 
     // TODO: Tailscale VPN IP로 교체
     private const val BASE_URL = "http://10.0.2.2:8000/"
+    const val WS_BASE_URL = "ws://10.0.2.2:8000"
 
-    private val okHttpClient = OkHttpClient.Builder()
+    val okHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
