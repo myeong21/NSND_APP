@@ -43,10 +43,12 @@ class HomeFragment : Fragment() {
 
     // 단계별 경보 중복 방지 플래그
     private var lastAlertedStage = 0
-    private var isAlertActive = false  // 추가
+    private var isAlertActive = false
+    private var lastAlertDismissedAt: Long = 0L          // 추가
+    private val ALERT_COOLDOWN_MS = 10_000L              // 추가
 
     // TODO: 로그인 연동 후 SharedPreferences에서 토큰 가져오기
-    private val token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZXhwIjoxNzgxMTU0MDQ1fQ.YHd5rLFJbDlwNOakPiyw9FOeN2UDCBs4dEbuiWqgKv4"
+    private val token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzIiwiZXhwIjoxNzgxNTg2MTY2fQ.jvKM8OaraA14jnuF4ykVyIYs6mMcpKXM-_uST0SDc6Y"
 
     // 연락처 목록 (ContactFragment와 공유하려면 추후 ViewModel로 이동)
     private val contactList = mutableListOf<ContactItem>()
@@ -62,11 +64,7 @@ class HomeFragment : Fragment() {
     private val alertLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             isAlertActive = false
-            // 경보 닫은 후 현재도 졸음 상태면 즉시 재경보
-            if (lastAlertedStage > 0) {
-                isAlertActive = true
-                triggerAlert(lastAlertedStage)
-            }
+            lastAlertDismissedAt = System.currentTimeMillis()  // 종료 시각 기록
         }
 
     override fun onCreateView(
@@ -267,9 +265,12 @@ class HomeFragment : Fragment() {
 
                 // 단계가 올라갔을 때만 경보 트리거 (중복 방지)
                 if (drowsyLevel > 0 && !isAlertActive) {
-                    isAlertActive = true
-                    lastAlertedStage = drowsyLevel
-                    triggerAlert(drowsyLevel)
+                    val cooldownPassed = (System.currentTimeMillis() - lastAlertDismissedAt) >= ALERT_COOLDOWN_MS
+                    if (cooldownPassed) {
+                        isAlertActive = true
+                        lastAlertedStage = drowsyLevel
+                        triggerAlert(drowsyLevel)
+                    }
                 } else if (drowsyLevel == 0) {
                     lastAlertedStage = 0
                 }
