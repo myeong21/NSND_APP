@@ -2,6 +2,7 @@ package com.jsm.nsnd.network
 
 import com.jsm.nsnd.network.model.DetectionRequest
 import com.jsm.nsnd.network.model.DetectionStartResponse
+import com.jsm.nsnd.network.model.ReportByDateResponse
 import com.jsm.nsnd.network.model.ReportHistoryResponse
 import com.jsm.nsnd.network.model.ReportSummaryResponse
 import com.jsm.nsnd.network.model.SessionEndRequest
@@ -10,6 +11,7 @@ import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
+import retrofit2.http.Query
 
 interface ApiService {
 
@@ -17,6 +19,12 @@ interface ApiService {
     suspend fun getReportSummary(
         @Header("Authorization") token: String
     ): ReportSummaryResponse
+
+    @GET("report/by-date")
+    suspend fun getReportByDate(
+        @Header("Authorization") token: String,
+        @Query("date") date: String
+    ): ReportByDateResponse
 
     @GET("report/history")
     suspend fun getReportHistory(

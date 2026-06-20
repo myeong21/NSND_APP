@@ -21,6 +21,7 @@ import androidx.core.content.ContextCompat
 
 import androidx.fragment.app.activityViewModels
 import com.jsm.nsnd.ui.SharedContactViewModel
+import android.content.Context
 
 class ContactFragment : Fragment() {
 
@@ -30,6 +31,36 @@ class ContactFragment : Fragment() {
     private val contactList = mutableListOf<ContactItem>()
     private lateinit var adapter: ContactAdapter
     private val sharedViewModel: SharedContactViewModel by activityViewModels()
+
+    // SharedPreferences 저장/불러오기
+    private fun saveContacts() {
+        val prefs = requireContext().getSharedPreferences("nsnd_prefs", Context.MODE_PRIVATE)
+        val json = contactList.joinToString(separator = "||") {
+            "${it.id}::${it.name}::${it.phone}::${it.message}"
+        }
+        prefs.edit().putString("contact_list", json).apply()
+    }
+
+    private fun loadContacts() {
+        val prefs = requireContext().getSharedPreferences("nsnd_prefs", Context.MODE_PRIVATE)
+        val json = prefs.getString("contact_list", "") ?: return
+        if (json.isBlank()) return
+        contactList.clear()
+        json.split("||").forEach { entry ->
+            val parts = entry.split("::")
+            if (parts.size == 4) {
+                contactList.add(
+                    ContactItem(
+                        id = parts[0].toIntOrNull() ?: 0,
+                        name = parts[1],
+                        phone = parts[2],
+                        message = parts[3]
+                    )
+                )
+            }
+        }
+        adapter.notifyDataSetChanged()
+    }
 
     private val smsPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -53,6 +84,7 @@ class ContactFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         setupRecyclerView()
+        loadContacts()
         setupFab()
         setupSendButton()
         updateEmptyState()
@@ -232,7 +264,8 @@ class ContactFragment : Fragment() {
             binding.rvContacts.visibility = View.VISIBLE
         }
         adapter.notifyDataSetChanged()
-        sharedViewModel.contacts.value = contactList.toList()  // 추가
+        sharedViewModel.contacts.value = contactList.toList()
+        saveContacts()
     }
 
     override fun onDestroyView() {

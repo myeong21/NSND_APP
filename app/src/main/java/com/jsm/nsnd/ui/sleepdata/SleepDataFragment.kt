@@ -1,6 +1,7 @@
 package com.jsm.nsnd.ui.sleepdata
 
 import android.app.DatePickerDialog
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -15,10 +16,13 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.ValueFormatter
 import com.jsm.nsnd.R
+import com.jsm.nsnd.data.session.SessionManager
 import com.jsm.nsnd.databinding.FragmentSleepDataBinding
 import com.jsm.nsnd.network.RetrofitClient
-import com.jsm.nsnd.network.model.ReportSummaryResponse
+import com.jsm.nsnd.network.model.ReportByDateResponse
+import com.jsm.nsnd.ui.auth.LoginActivity
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -30,8 +34,8 @@ class SleepDataFragment : Fragment() {
 
     private var selectedCalendar = Calendar.getInstance()
 
-    // TODO: 로그인 연동 후 SharedPreferences에서 토큰 가져오기
-    private val token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzIiwiZXhwIjoxNzgxNTg2MTY2fQ.jvKM8OaraA14jnuF4ykVyIYs6mMcpKXM-_uST0SDc6Y"
+    private val sessionManager by lazy { SessionManager(requireContext()) }
+    private val token: String get() = sessionManager.getToken().orEmpty()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -88,13 +92,23 @@ class SleepDataFragment : Fragment() {
     // API 데이터 로드
     // ─────────────────────────────────────────
     private fun loadReportData() {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val dateStr = sdf.format(selectedCalendar.time)
+
         lifecycleScope.launch {
             try {
                 showLoading(true)
-                val response = RetrofitClient.apiService.getReportSummary(
-                    RetrofitClient.authHeader(token)
+                val response = RetrofitClient.apiService.getReportByDate(
+                    RetrofitClient.authHeader(token),
+                    dateStr
                 )
                 bindReportData(response)
+            } catch (e: HttpException) {
+                if (e.code() == 401) {
+                    handleSessionExpired()
+                } else {
+                    showError()
+                }
             } catch (e: Exception) {
                 showError()
             } finally {
@@ -104,9 +118,24 @@ class SleepDataFragment : Fragment() {
     }
 
     // ─────────────────────────────────────────
+// 세션 만료 처리: 로그아웃 + 로그인 화면 이동
+// ─────────────────────────────────────────
+    private fun handleSessionExpired() {
+        if (_binding == null) return
+        sessionManager.clear()
+        val intent = Intent(requireContext(), LoginActivity::class.java)
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        startActivity(intent)
+        requireActivity().finish()
+    }
+
+    // ─────────────────────────────────────────
     // 데이터 바인딩
     // ─────────────────────────────────────────
-    private fun bindReportData(data: ReportSummaryResponse) {
+    private fun bindReportData(data: ReportByDateResponse) {
+        binding.cardSafetyScore.visibility = View.VISIBLE
+        binding.cardChart.visibility = View.VISIBLE
+
         // 안전 점수
         binding.tvSafetyScore.text = "${data.safety_score}점"
         binding.tvSafetyGrade.text = when (data.grade) {
@@ -142,8 +171,8 @@ class SleepDataFragment : Fragment() {
     // ─────────────────────────────────────────
     // 차트 설정
     // ─────────────────────────────────────────
-    private fun setupChart(data: ReportSummaryResponse) {
-        val entries = data.chart_data.map { Entry(it.hour.toFloat(), it.count.toFloat()) }
+    private fun setupChart(data: ReportByDateResponse) {
+        val entries = data.chart_data.map { Entry(it.hour.toFloat(), it.max_level.toFloat()) }
 
         if (entries.isEmpty()) return
 
@@ -184,9 +213,15 @@ class SleepDataFragment : Fragment() {
                 gridColor = requireContext().getColor(R.color.divider)
                 axisLineColor = requireContext().getColor(R.color.divider)
                 axisMinimum = 0f
+                axisMaximum = 3f
                 granularity = 1f
                 valueFormatter = object : ValueFormatter() {
-                    override fun getFormattedValue(value: Float) = "${value.toInt()}회"
+                    override fun getFormattedValue(value: Float) = when (value.toInt()) {
+                        1 -> "1단계"
+                        2 -> "2단계"
+                        3 -> "3단계"
+                        else -> ""
+                    }
                 }
             }
             axisRight.isEnabled = false
@@ -221,8 +256,10 @@ class SleepDataFragment : Fragment() {
 
     private fun showError() {
         binding.tvSleepEmpty.visibility = View.VISIBLE
-        binding.tvSleepEmpty.text = "데이터를 불러오지 못했습니다."
+        binding.tvSleepEmpty.text = "해당 날짜의 운전 기록이 없습니다."
         binding.rvSleepEvents.visibility = View.GONE
+        binding.cardSafetyScore.visibility = View.GONE
+        binding.cardChart.visibility = View.GONE
     }
 
     override fun onDestroyView() {

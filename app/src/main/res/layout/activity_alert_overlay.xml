@@ -109,6 +109,7 @@
         android:fontFamily="sans-serif-medium"
         android:textColor="@color/alert_red"
         android:backgroundTint="#FFFFFF"
+        android:visibility="invisible"
         android:layout_marginBottom="48dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"

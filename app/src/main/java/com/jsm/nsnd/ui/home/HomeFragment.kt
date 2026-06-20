@@ -1,6 +1,7 @@
 package com.jsm.nsnd.ui.home
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
@@ -17,10 +18,12 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.jsm.nsnd.R
+import com.jsm.nsnd.data.session.SessionManager
 import com.jsm.nsnd.databinding.FragmentHomeBinding
 import com.jsm.nsnd.network.RetrofitClient
 import com.jsm.nsnd.network.model.DetectionRequest
 import com.jsm.nsnd.network.model.SessionEndRequest
+import com.jsm.nsnd.ui.auth.LoginActivity
 import com.jsm.nsnd.ui.contact.ContactItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -29,6 +32,7 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONObject
+import retrofit2.HttpException
 import androidx.fragment.app.activityViewModels
 import com.jsm.nsnd.ui.SharedContactViewModel
 
@@ -47,8 +51,8 @@ class HomeFragment : Fragment() {
     private var lastAlertDismissedAt: Long = 0L          // 추가
     private val ALERT_COOLDOWN_MS = 10_000L              // 추가
 
-    // TODO: 로그인 연동 후 SharedPreferences에서 토큰 가져오기
-    private val token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzIiwiZXhwIjoxNzgxNTg2MTY2fQ.jvKM8OaraA14jnuF4ykVyIYs6mMcpKXM-_uST0SDc6Y"
+    private val sessionManager by lazy { SessionManager(requireContext()) }
+    private val token: String get() = sessionManager.getToken().orEmpty()
 
     // 연락처 목록 (ContactFragment와 공유하려면 추후 ViewModel로 이동)
     private val contactList = mutableListOf<ContactItem>()
@@ -177,11 +181,31 @@ class HomeFragment : Fragment() {
                 // 4. WebSocket 연결
                 connectWebSocket(currentSessionId)
 
+            } catch (e: HttpException) {
+                if (e.code() == 401) {
+                    handleSessionExpired()
+                } else {
+                    Log.e("HomeFragment", "startDetection error", e)
+                    Toast.makeText(requireContext(), "서버 연결 실패: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
             } catch (e: Exception) {
                 Log.e("HomeFragment", "startDetection error", e)
                 Toast.makeText(requireContext(), "서버 연결 실패: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    // ─────────────────────────────────────────
+// 세션 만료 처리: 로그아웃 + 로그인 화면 이동
+// ─────────────────────────────────────────
+    private fun handleSessionExpired() {
+        if (_binding == null) return
+        sessionManager.clear()
+        Toast.makeText(requireContext(), "로그인이 만료되었습니다. 다시 로그인해주세요", Toast.LENGTH_SHORT).show()
+        val intent = Intent(requireContext(), LoginActivity::class.java)
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        startActivity(intent)
+        requireActivity().finish()
     }
 
     // ─────────────────────────────────────────

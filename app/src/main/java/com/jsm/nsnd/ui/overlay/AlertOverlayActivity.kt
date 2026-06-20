@@ -7,6 +7,8 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.jsm.nsnd.R
 import com.jsm.nsnd.databinding.ActivityAlertOverlayBinding
+import android.os.Handler
+import android.os.Looper
 
 class AlertOverlayActivity : AppCompatActivity() {
 
@@ -93,8 +95,13 @@ class AlertOverlayActivity : AppCompatActivity() {
     // 확인 버튼
     // ─────────────────────────────────────────
     private fun setupDismissButton() {
+        binding.btnDismiss.visibility = View.INVISIBLE
+
+        Handler(Looper.getMainLooper()).postDelayed({
+            binding.btnDismiss.visibility = View.VISIBLE
+        }, 3000)
+
         binding.btnDismiss.setOnClickListener {
-            // TODO: 젯슨 나노에 경보 확인 신호 전송으로 교체
             binding.ivRotatingRing.clearAnimation()
             binding.viewFlash.clearAnimation()
             finish()
