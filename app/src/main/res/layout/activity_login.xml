@@ -44,4 +44,14 @@
         android:text="@string/login_to_signup"
         android:layout_marginTop="8dp" />
 
+    <Button
+        android:id="@+id/btnServerConfig"
+        style="?attr/borderlessButtonStyle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="서버 주소 설정"
+        android:textColor="@color/text_secondary"
+        android:textSize="13sp"
+        android:layout_marginTop="16dp" />
+
 </LinearLayout>

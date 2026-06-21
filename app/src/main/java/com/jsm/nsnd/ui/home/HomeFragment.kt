@@ -162,13 +162,13 @@ class HomeFragment : Fragment() {
         lifecycleScope.launch {
             try {
                 // 1. 세션 시작
-                val sessionResp = RetrofitClient.apiService.startSession(
+                val sessionResp = RetrofitClient.apiService(requireContext()).startSession(
                     RetrofitClient.authHeader(token)
                 )
                 currentSessionId = sessionResp.session_id
 
                 // 2. 감지 시작
-                RetrofitClient.apiService.startDetection(
+                RetrofitClient.apiService(requireContext()).startDetection(
                     RetrofitClient.authHeader(token),
                     DetectionRequest(currentSessionId)
                 )
@@ -223,11 +223,11 @@ class HomeFragment : Fragment() {
 
         lifecycleScope.launch {
             try {
-                RetrofitClient.apiService.stopDetection(
+                RetrofitClient.apiService(requireContext()).stopDetection(
                     RetrofitClient.authHeader(token),
                     DetectionRequest(currentSessionId)
                 )
-                RetrofitClient.apiService.endSession(
+                RetrofitClient.apiService(requireContext()).endSession(
                     RetrofitClient.authHeader(token),
                     SessionEndRequest(currentSessionId)
                 )
@@ -249,7 +249,7 @@ class HomeFragment : Fragment() {
     // ─────────────────────────────────────────
     private fun connectWebSocket(sessionId: Int) {
         val request = okhttp3.Request.Builder()
-            .url("${RetrofitClient.WS_BASE_URL}/detection/ws/$sessionId")
+            .url("${RetrofitClient.wsBaseUrl(requireContext())}/detection/ws/$sessionId")
             .build()
 
         webSocket = RetrofitClient.okHttpClient.newWebSocket(

@@ -41,7 +41,7 @@ class SignUpActivity : AppCompatActivity() {
             return
         }
 
-        ApiClient.authApi.register(RegisterRequest(username, name, password))
+        ApiClient.authApi(this).register(RegisterRequest(username, name, password))
             .enqueue(object : Callback<UserResponse> {
                 override fun onResponse(
                     call: Call<UserResponse>,

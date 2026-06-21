@@ -7,6 +7,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.jsm.nsnd.data.api.ApiClient
 import com.jsm.nsnd.data.api.LoginRequest
 import com.jsm.nsnd.data.api.TokenResponse
+import com.jsm.nsnd.data.session.ServerConfig
 import com.jsm.nsnd.data.session.SessionManager
 import com.jsm.nsnd.databinding.ActivityLoginBinding
 import com.jsm.nsnd.ui.main.MainActivity
@@ -38,6 +39,10 @@ class LoginActivity : AppCompatActivity() {
         binding.btnGoSignup.setOnClickListener {
             startActivity(Intent(this, SignUpActivity::class.java))
         }
+
+        binding.btnServerConfig.setOnClickListener {
+            ServerConfig.showEditDialog(this)
+        }
     }
 
     private fun login() {
@@ -49,7 +54,7 @@ class LoginActivity : AppCompatActivity() {
             return
         }
 
-        ApiClient.authApi.login(LoginRequest(username, password))
+        ApiClient.authApi(this).login(LoginRequest(username, password))
             .enqueue(object : Callback<TokenResponse> {
                 override fun onResponse(call: Call<TokenResponse>, response: Response<TokenResponse>) {
                     val body = response.body()

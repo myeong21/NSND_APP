@@ -16,6 +16,7 @@ import com.jsm.nsnd.databinding.ActivityMainBinding
 import android.content.Intent
 import android.widget.Toast
 import com.jsm.nsnd.data.api.ApiClient
+import com.jsm.nsnd.data.session.ServerConfig
 import com.jsm.nsnd.data.session.SessionManager
 import com.jsm.nsnd.ui.auth.LoginActivity
 import retrofit2.Call
@@ -149,12 +150,16 @@ class MainActivity : AppCompatActivity() {
                 .show()
         }
 
+        binding.btnServerConfig.setOnClickListener {
+            ServerConfig.showEditDialog(this)
+        }
+
         binding.btnWithdraw.setOnClickListener {
             AlertDialog.Builder(this)
                 .setTitle(getString(R.string.sidebar_withdraw))
                 .setMessage(getString(R.string.sidebar_withdraw_confirm))
                 .setPositiveButton(getString(R.string.confirm)) { _, _ ->
-                    ApiClient.authApi.deleteMe(sessionManager.getAuthHeader())
+                    ApiClient.authApi(this).deleteMe(sessionManager.getAuthHeader())
                         .enqueue(object : Callback<Void> {
                             override fun onResponse(call: Call<Void>, response: Response<Void>) {
                                 if (response.isSuccessful) {

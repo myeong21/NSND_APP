@@ -1,12 +1,13 @@
 package com.jsm.nsnd.data.api
 
+import android.content.Context
+import com.jsm.nsnd.data.session.ServerConfig
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 object ApiClient {
-    private const val BASE_URL = "http://10.0.2.2:8000/"
 
     private val client = OkHttpClient.Builder()
         .addInterceptor(HttpLoggingInterceptor().apply {
@@ -14,19 +15,23 @@ object ApiClient {
         })
         .build()
 
-    private val retrofit: Retrofit by lazy {
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
-            .client(client)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
+    private var cachedRetrofit: Retrofit? = null
+    private var cachedBaseUrl: String? = null
+
+    private fun retrofit(context: Context): Retrofit {
+        val baseUrl = ServerConfig.getHttpBaseUrl(context)
+        if (cachedRetrofit == null || cachedBaseUrl != baseUrl) {
+            cachedBaseUrl = baseUrl
+            cachedRetrofit = Retrofit.Builder()
+                .baseUrl(baseUrl)
+                .client(client)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build()
+        }
+        return cachedRetrofit!!
     }
 
-    val contactApi: ContactApi by lazy {
-        retrofit.create(ContactApi::class.java)
-    }
+    fun contactApi(context: Context): ContactApi = retrofit(context).create(ContactApi::class.java)
 
-    val authApi: AuthApi by lazy {
-        retrofit.create(AuthApi::class.java)
-    }
+    fun authApi(context: Context): AuthApi = retrofit(context).create(AuthApi::class.java)
 }

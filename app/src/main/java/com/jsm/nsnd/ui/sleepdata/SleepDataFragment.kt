@@ -98,7 +98,7 @@ class SleepDataFragment : Fragment() {
         lifecycleScope.launch {
             try {
                 showLoading(true)
-                val response = RetrofitClient.apiService.getReportByDate(
+                val response = RetrofitClient.apiService(requireContext()).getReportByDate(
                     RetrofitClient.authHeader(token),
                     dateStr
                 )
