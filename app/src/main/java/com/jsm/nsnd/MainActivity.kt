@@ -16,6 +16,7 @@ import com.jsm.nsnd.databinding.ActivityMainBinding
 import android.content.Intent
 import android.widget.Toast
 import com.jsm.nsnd.data.api.ApiClient
+import com.jsm.nsnd.data.api.UserResponse
 import com.jsm.nsnd.data.session.ServerConfig
 import com.jsm.nsnd.data.session.SessionManager
 import com.jsm.nsnd.ui.auth.LoginActivity
@@ -40,11 +41,27 @@ class MainActivity : AppCompatActivity() {
         setupSidebar()
         setupThemeButtons()
         setupSidebarActions()
+        loadUserInfo()
+    }
 
-        // TODO: 로그인 연동 후 실제 사용자 정보로 교체
-        binding.tvSidebarName.text = "사용자"
-        binding.tvSidebarId.text = "user@nsnd"
-        binding.tvAvatarInitial.text = "U"
+    // ─────────────────────────────────────────
+    // 사이드바 사용자 정보 로드
+    // ─────────────────────────────────────────
+    private fun loadUserInfo() {
+        ApiClient.authApi(this).me(sessionManager.getAuthHeader())
+            .enqueue(object : Callback<UserResponse> {
+                override fun onResponse(call: Call<UserResponse>, response: Response<UserResponse>) {
+                    val user = response.body()
+                    if (response.isSuccessful && user != null) {
+                        binding.tvSidebarName.text = user.name
+                        binding.tvSidebarId.text = user.username
+                    }
+                }
+
+                override fun onFailure(call: Call<UserResponse>, t: Throwable) {
+                    // 네트워크 실패 시 기존 텍스트 유지
+                }
+            })
     }
 
     // ─────────────────────────────────────────

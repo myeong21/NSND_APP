@@ -110,18 +110,6 @@
             android:background="@color/bg_card">
 
             <TextView
-                android:id="@+id/tvAvatarInitial"
-                android:layout_width="52dp"
-                android:layout_height="52dp"
-                android:gravity="center"
-                android:background="@drawable/bg_avatar"
-                android:textColor="@color/accent_primary"
-                android:textSize="20sp"
-                android:fontFamily="sans-serif-medium"
-                android:text="U"
-                android:layout_marginBottom="12dp" />
-
-            <TextView
                 android:id="@+id/tvSidebarName"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -134,7 +122,7 @@
                 android:id="@+id/tvSidebarId"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="user@nsnd"
+                android:text="아이디"
                 android:textColor="@color/text_secondary"
                 android:textSize="13sp"
                 android:layout_marginTop="2dp" />
