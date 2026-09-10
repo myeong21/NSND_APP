@@ -31,14 +31,16 @@
     <!-- ============================================ -->
     <color name="light_bg_primary">#F8FAFC</color>
     <color name="light_bg_secondary">#FFFFFF</color>
-    <color name="light_bg_card">#FFFFFF</color>
-    <color name="light_bg_card_elevated">#F1F5F9</color>
+    <!-- Glass surface: 배경색이 끊기지 않고 비치도록 흰색 veil만 사용 -->
+    <color name="light_bg_card">#6EFFFFFF</color>
+    <color name="light_bg_card_elevated">#3DFFFFFF</color>
+    <color name="light_bg_card_strong">#D9FFFFFF</color>
     <color name="light_text_primary">#10213D</color>
     <color name="light_text_secondary">#62728A</color>
     <color name="light_text_hint">#94A3B8</color>
-    <color name="light_divider">#E6EDF5</color>
-    <color name="light_border">#D8E4F0</color>
-    <color name="light_nav_bg">#FFFFFF</color>
+    <color name="light_divider">#667E96B3</color>
+    <color name="light_border">#55A9C1DB</color>
+    <color name="light_nav_bg">#94FFFFFF</color>
     <color name="light_nav_active">#1A6BFF</color>
     <color name="light_nav_inactive">#9CA3AF</color>
 
@@ -47,14 +49,15 @@
     <!-- ============================================ -->
     <color name="dark_bg_primary">#0F172A</color>
     <color name="dark_bg_secondary">#17233A</color>
-    <color name="dark_bg_card">#1C2B45</color>
-    <color name="dark_bg_card_elevated">#263854</color>
+    <color name="dark_bg_card">#2EFFFFFF</color>
+    <color name="dark_bg_card_elevated">#24FFFFFF</color>
+    <color name="dark_bg_card_strong">#D9172944</color>
     <color name="dark_text_primary">#F4F8FF</color>
     <color name="dark_text_secondary">#B1C0D5</color>
     <color name="dark_text_hint">#8191A9</color>
-    <color name="dark_divider">#2A3C57</color>
-    <color name="dark_border">#344966</color>
-    <color name="dark_nav_bg">#17233A</color>
+    <color name="dark_divider">#66718AA8</color>
+    <color name="dark_border">#45FFFFFF</color>
+    <color name="dark_nav_bg">#5CFFFFFF</color>
     <color name="dark_nav_active">#75A8FF</color>
     <color name="dark_nav_inactive">#8191A9</color>
 
@@ -63,6 +66,7 @@
     <color name="bg_secondary">@color/light_bg_secondary</color>
     <color name="bg_card">@color/light_bg_card</color>
     <color name="bg_card_elevated">@color/light_bg_card_elevated</color>
+    <color name="bg_card_strong">@color/light_bg_card_strong</color>
     <color name="divider">@color/light_divider</color>
     <color name="border">@color/light_border</color>
     <color name="nav_bg">@color/light_nav_bg</color>

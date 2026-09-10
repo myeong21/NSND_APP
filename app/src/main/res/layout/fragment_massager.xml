@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg_primary"
+    android:background="@android:color/transparent"
     android:fillViewport="true"
     tools:context=".ui.massager.MassagerFragment">
 
@@ -30,9 +30,9 @@
             android:layout_marginTop="18dp"
             app:cardBackgroundColor="@color/bg_card"
             app:cardCornerRadius="24dp"
-            app:cardElevation="1dp"
+            app:cardElevation="0dp"
             app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
+            app:strokeWidth="0dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -157,7 +157,7 @@
             app:cardCornerRadius="18dp"
             app:cardElevation="0dp"
             app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
+            app:strokeWidth="0dp">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

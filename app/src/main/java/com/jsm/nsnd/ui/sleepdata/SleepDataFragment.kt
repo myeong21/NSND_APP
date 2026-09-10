@@ -54,6 +54,7 @@ class SleepDataFragment : Fragment() {
 
         setupDateDisplay()
         setupCalendarButton()
+        binding.btnRetrySleep.setOnClickListener { loadReportData() }
         loadReportData()
     }
 
@@ -152,16 +153,32 @@ class SleepDataFragment : Fragment() {
     // 데이터 바인딩
     // ─────────────────────────────────────────
     private fun bindReportData(data: ReportByDateResponse) {
+        binding.layoutSleepEmpty.visibility = View.GONE
         binding.cardSafetyScore.visibility = View.VISIBLE
         binding.cardChart.visibility = View.VISIBLE
 
         // 안전 점수
-        binding.tvSafetyScore.text = "${data.safety_score}점"
+        binding.tvSafetyScore.text = data.safety_score.toString()
+        binding.safetyScoreRing.setScore(data.safety_score, data.grade)
         binding.tvSafetyGrade.text = when (data.grade) {
             "safe" -> "안전"
             "caution" -> "주의"
             "danger" -> "위험"
             else -> data.grade
+        }
+        when (data.grade) {
+            "danger" -> {
+                binding.tvSafetyGrade.setBackgroundResource(R.drawable.bg_badge_danger)
+                binding.tvSafetyGrade.setTextColor(requireContext().getColor(R.color.status_danger))
+            }
+            "caution" -> {
+                binding.tvSafetyGrade.setBackgroundResource(R.drawable.bg_badge_warn)
+                binding.tvSafetyGrade.setTextColor(requireContext().getColor(R.color.status_warn))
+            }
+            else -> {
+                binding.tvSafetyGrade.setBackgroundResource(R.drawable.bg_badge_safe)
+                binding.tvSafetyGrade.setTextColor(requireContext().getColor(R.color.status_safe))
+            }
         }
 
         // 졸음 횟수
@@ -193,15 +210,27 @@ class SleepDataFragment : Fragment() {
     private fun setupChart(data: ReportByDateResponse) {
         val entries = data.chart_data.map { Entry(it.hour.toFloat(), it.max_level.toFloat()) }
 
-        if (entries.isEmpty()) return
+        if (entries.isEmpty()) {
+            binding.lineChart.clear()
+            binding.lineChart.setNoDataText("표시할 시간별 데이터가 없습니다.")
+            binding.lineChart.invalidate()
+            return
+        }
 
         val dataSet = LineDataSet(entries, "졸음 감지").apply {
             color = requireContext().getColor(R.color.accent_primary)
-            setCircleColor(requireContext().getColor(R.color.accent_light))
+            setCircleColors(data.chart_data.map {
+                requireContext().getColor(when (it.max_level) {
+                    3 -> R.color.stage_3
+                    2 -> R.color.stage_2
+                    1 -> R.color.stage_1
+                    else -> R.color.status_safe
+                })
+            })
             lineWidth = 2f
             circleRadius = 8f
             setDrawValues(false)
-            mode = LineDataSet.Mode.LINEAR
+            mode = LineDataSet.Mode.STEPPED
             fillColor = requireContext().getColor(R.color.accent_secondary)
             fillAlpha = 80
             setDrawFilled(true)
@@ -253,10 +282,14 @@ class SleepDataFragment : Fragment() {
     // ─────────────────────────────────────────
     private fun setupRecyclerView(events: List<SleepEventItem>) {
         if (events.isEmpty()) {
-            binding.tvSleepEmpty.visibility = View.VISIBLE
+            binding.layoutSleepEmpty.visibility = View.VISIBLE
+            binding.ivSleepEmpty.setImageResource(R.drawable.ic_clock)
+            binding.ivSleepEmpty.setColorFilter(requireContext().getColor(R.color.accent_primary))
+            binding.tvSleepEmpty.text = "이 날짜에는 졸음 감지 기록이 없습니다."
+            binding.btnRetrySleep.visibility = View.GONE
             binding.rvSleepEvents.visibility = View.GONE
         } else {
-            binding.tvSleepEmpty.visibility = View.GONE
+            binding.layoutSleepEmpty.visibility = View.GONE
             binding.rvSleepEvents.visibility = View.VISIBLE
             binding.rvSleepEvents.apply {
                 layoutManager = LinearLayoutManager(requireContext())
@@ -271,12 +304,16 @@ class SleepDataFragment : Fragment() {
     // ─────────────────────────────────────────
     private fun showLoading(isLoading: Boolean) {
         _binding?.progressBar?.visibility = if (isLoading) View.VISIBLE else View.GONE
+        if (isLoading) _binding?.layoutSleepEmpty?.visibility = View.GONE
     }
 
     private fun showError() {
         val currentBinding = _binding ?: return
-        currentBinding.tvSleepEmpty.visibility = View.VISIBLE
-        currentBinding.tvSleepEmpty.text = "해당 날짜의 운전 기록이 없습니다."
+        currentBinding.layoutSleepEmpty.visibility = View.VISIBLE
+        currentBinding.ivSleepEmpty.setImageResource(R.drawable.ic_warning_triangle)
+        currentBinding.ivSleepEmpty.setColorFilter(requireContext().getColor(R.color.status_danger))
+        currentBinding.tvSleepEmpty.text = "수면 데이터를 불러오지 못했습니다.\n네트워크와 서버 상태를 확인해주세요."
+        currentBinding.btnRetrySleep.visibility = View.VISIBLE
         currentBinding.rvSleepEvents.visibility = View.GONE
         currentBinding.cardSafetyScore.visibility = View.GONE
         currentBinding.cardChart.visibility = View.GONE

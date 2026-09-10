@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg_primary"
+    android:background="@android:color/transparent"
     tools:context=".ui.contact.ContactFragment">
 
     <TextView
@@ -33,7 +33,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tvContactSubtitle"
         app:strokeColor="@color/accent_secondary"
-        app:strokeWidth="1dp">
+        app:strokeWidth="0dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -50,7 +50,7 @@
                     android:layout_height="20dp"
                     android:layout_gravity="center"
                     android:contentDescription="자동 발송 조건"
-                    android:src="@android:drawable/ic_dialog_email"
+                    android:src="@drawable/ic_sms"
                     android:tint="@color/accent_primary" />
             </FrameLayout>
             <LinearLayout
@@ -83,10 +83,8 @@
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="20dp"
         android:layout_marginTop="20dp"
-        android:fontFamily="sans-serif-medium"
         android:text="연락 대상"
-        android:textColor="@color/text_primary"
-        android:textSize="16sp"
+        android:textAppearance="@style/TextAppearance.NSND.Title"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/cardContactGuide" />
@@ -152,7 +150,7 @@
             android:text="연락처 추가"
             android:textColor="@android:color/white"
             app:backgroundTint="@color/accent_primary"
-            app:icon="@android:drawable/ic_input_add"
+            app:icon="@drawable/ic_add"
             app:iconTint="@android:color/white" />
     </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

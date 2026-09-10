@@ -19,6 +19,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.jsm.nsnd.R
 import com.jsm.nsnd.data.session.SessionManager
+import com.jsm.nsnd.data.session.ServerConfig
 import com.jsm.nsnd.databinding.FragmentHomeBinding
 import com.jsm.nsnd.network.RetrofitClient
 import com.jsm.nsnd.network.model.DetectionRequest
@@ -36,6 +37,9 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONObject
 import retrofit2.HttpException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.fragment.app.activityViewModels
 import com.jsm.nsnd.ui.SharedContactViewModel
 import com.jsm.nsnd.ui.common.ApiErrorMessage
@@ -262,31 +266,36 @@ class HomeFragment : Fragment() {
 
     private fun updateServerStatusUi() {
         if (_binding == null || isConnected) return
+        val serverAddress = "${ServerConfig.getIp(requireContext())}:8000"
+        val checkedTime = SimpleDateFormat("HH:mm:ss", Locale.KOREAN).format(Date())
         when (serverStatus) {
             ServerStatus.CHECKING -> {
                 binding.layoutServerStatusIcon.setBackgroundResource(R.drawable.bg_icon_blue)
-                binding.ivServerStatus.setImageResource(android.R.drawable.presence_away)
+                binding.ivServerStatus.setImageResource(R.drawable.ic_status_checking)
                 binding.ivServerStatus.setColorFilter(requireContext().getColor(R.color.accent_primary))
                 binding.tvSystemAvailability.text = "서버 연결 확인 중"
                 binding.tvSystemAvailabilityDescription.text = "시스템 연결 상태를 확인하고 있습니다."
+                binding.tvServerMeta.text = "$serverAddress · 확인 중"
                 binding.btnStart.alpha = 0.72f
             }
             ServerStatus.AVAILABLE -> {
                 binding.layoutServerStatusIcon.setBackgroundResource(R.drawable.bg_icon_safe)
-                binding.ivServerStatus.setImageResource(android.R.drawable.presence_online)
+                binding.ivServerStatus.setImageResource(R.drawable.ic_status_online)
                 binding.ivServerStatus.setColorFilter(requireContext().getColor(R.color.status_safe))
                 binding.tvSystemAvailability.text = "시스템 준비 완료"
                 binding.tvSystemAvailabilityDescription.text =
                     "작동을 시작하면 운전자 상태를 실시간으로 확인합니다."
+                binding.tvServerMeta.text = "$serverAddress · $checkedTime 확인"
                 binding.btnStart.alpha = 1f
             }
             ServerStatus.UNAVAILABLE -> {
                 binding.layoutServerStatusIcon.setBackgroundResource(R.drawable.bg_icon_danger)
-                binding.ivServerStatus.setImageResource(android.R.drawable.presence_offline)
+                binding.ivServerStatus.setImageResource(R.drawable.ic_status_offline)
                 binding.ivServerStatus.setColorFilter(requireContext().getColor(R.color.status_danger))
                 binding.tvSystemAvailability.text = "서버 연결 안 됨"
                 binding.tvSystemAvailabilityDescription.text =
                     "서버 실행 상태와 설정된 서버 주소를 확인해주세요."
+                binding.tvServerMeta.text = "$serverAddress · $checkedTime 실패"
                 binding.btnStart.alpha = 1f
             }
         }

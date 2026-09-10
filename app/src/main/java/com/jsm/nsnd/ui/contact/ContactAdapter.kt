@@ -17,6 +17,7 @@ class ContactAdapter(
 
         fun bind(item: ContactItem, position: Int) {
             binding.tvContactName.text = item.name
+            binding.tvContactInitial.text = item.name.take(1).uppercase()
             binding.tvContactPhone.text = item.phone
             binding.tvContactMessage.text = "\"${item.message}\""
 

@@ -17,14 +17,15 @@
 
     <color name="bg_primary">#0F172A</color>
     <color name="bg_secondary">#17233A</color>
-    <color name="bg_card">#1C2B45</color>
-    <color name="bg_card_elevated">#263854</color>
+    <color name="bg_card">#2EFFFFFF</color>
+    <color name="bg_card_elevated">#24FFFFFF</color>
+    <color name="bg_card_strong">#D9172944</color>
     <color name="text_primary">#F4F8FF</color>
     <color name="text_secondary">#B1C0D5</color>
     <color name="text_hint">#8191A9</color>
-    <color name="divider">#2A3C57</color>
-    <color name="border">#344966</color>
-    <color name="nav_bg">#17233A</color>
+    <color name="divider">#66718AA8</color>
+    <color name="border">#45FFFFFF</color>
+    <color name="nav_bg">#5CFFFFFF</color>
     <color name="nav_active">#75A8FF</color>
     <color name="nav_inactive">#8191A9</color>
 

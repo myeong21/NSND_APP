@@ -8,6 +8,16 @@
     android:padding="24dp"
     tools:context=".ui.overlay.AlertOverlayActivity">
 
+    <!-- 경보 단계가 높을수록 진해지는 고정 위험 배경. 콘텐츠 아래에만 배치한다. -->
+    <View
+        android:id="@+id/viewStageTint"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <View
         android:id="@+id/viewFlash"
         android:layout_width="0dp"
@@ -56,7 +66,7 @@
                     android:layout_height="52dp"
                     android:layout_gravity="center"
                     android:contentDescription="경고"
-                    android:src="@android:drawable/ic_dialog_alert"
+                    android:src="@drawable/ic_warning_triangle"
                     android:tint="@color/alert_red" />
             </FrameLayout>
 
@@ -98,11 +108,12 @@
 
     <LinearLayout
         android:id="@+id/layoutStageIndicator"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
         android:orientation="horizontal"
-        android:padding="8dp"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="12dp"
         app:layout_constraintBottom_toTopOf="@id/btnDismiss"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />

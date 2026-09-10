@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg_primary"
+    android:background="@android:color/transparent"
     android:clipToPadding="false"
     android:fillViewport="true"
     android:paddingBottom="16dp"
@@ -122,9 +122,9 @@
                 android:layout_height="wrap_content"
                 app:cardBackgroundColor="@color/bg_card"
                 app:cardCornerRadius="20dp"
-                app:cardElevation="1dp"
+                app:cardElevation="0dp"
                 app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
+                app:strokeWidth="0dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -143,7 +143,7 @@
                             android:layout_height="24dp"
                             android:layout_gravity="center"
                             android:contentDescription="시스템 준비"
-                            android:src="@android:drawable/presence_away"
+                            android:src="@drawable/ic_status_checking"
                             android:tint="@color/accent_primary" />
                     </FrameLayout>
                     <LinearLayout
@@ -168,6 +168,17 @@
                             android:text="시스템 연결 상태를 확인하고 있습니다."
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/tvServerMeta"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="5dp"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:text="10.0.2.2:8000 · 확인 전"
+                            android:textColor="@color/text_hint"
+                            android:textSize="10sp" />
                     </LinearLayout>
 
                     <ImageButton
@@ -178,7 +189,7 @@
                         android:background="@drawable/bg_icon_blue"
                         android:contentDescription="서버 상태 새로고침"
                         android:padding="11dp"
-                        android:src="@android:drawable/ic_popup_sync"
+                        android:src="@drawable/ic_refresh"
                         android:tint="@color/accent_primary" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -208,9 +219,9 @@
                 android:layout_height="wrap_content"
                 app:cardBackgroundColor="@color/bg_card"
                 app:cardCornerRadius="20dp"
-                app:cardElevation="1dp"
+                app:cardElevation="0dp"
                 app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
+                app:strokeWidth="0dp">
 
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
@@ -269,8 +280,12 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="16dp"
-                        android:text="실시간 감지 중\n현재 운전자 상태를 확인하세요"
-                        android:textColor="@color/text_secondary"
+                        android:background="@drawable/bg_badge_safe"
+                        android:fontFamily="sans-serif-medium"
+                        android:paddingHorizontal="10dp"
+                        android:paddingVertical="7dp"
+                        android:text="●  실시간 감지 중\n현재 상태를 확인하세요"
+                        android:textColor="@color/status_safe"
                         android:textSize="12sp"
                         app:layout_constraintBottom_toBottomOf="@id/tvStageStatus"
                         app:layout_constraintEnd_toEndOf="parent"
@@ -310,9 +325,9 @@
                 android:layout_marginTop="14dp"
                 app:cardBackgroundColor="@color/bg_card"
                 app:cardCornerRadius="20dp"
-                app:cardElevation="1dp"
+                app:cardElevation="0dp"
                 app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
+                app:strokeWidth="0dp">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"

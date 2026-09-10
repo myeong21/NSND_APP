@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg_primary"
+    android:background="@android:color/transparent"
     android:orientation="vertical"
     tools:context=".ui.sleepdata.SleepDataFragment">
 
@@ -47,7 +47,7 @@
             android:background="@drawable/bg_icon_blue"
             android:contentDescription="날짜 선택"
             android:padding="11dp"
-            android:src="@android:drawable/ic_menu_today"
+            android:src="@drawable/ic_calendar"
             android:tint="@color/accent_primary" />
     </LinearLayout>
 
@@ -72,9 +72,9 @@
                 android:layout_marginTop="4dp"
                 app:cardBackgroundColor="@color/bg_card"
                 app:cardCornerRadius="22dp"
-                app:cardElevation="1dp"
+                app:cardElevation="0dp"
                 app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
+                app:strokeWidth="0dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -92,29 +92,50 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
+                        android:layout_marginTop="12dp"
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
-                        <TextView
-                            android:id="@+id/tvSafetyScore"
-                            android:layout_width="wrap_content"
+                        <FrameLayout android:layout_width="116dp" android:layout_height="116dp">
+                            <com.jsm.nsnd.ui.sleepdata.SafetyScoreRingView
+                                android:id="@+id/safetyScoreRing"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent" />
+                            <TextView
+                                android:id="@+id/tvSafetyScore"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_gravity="center"
+                                android:fontFamily="sans-serif-medium"
+                                android:textColor="@color/text_primary"
+                                android:textSize="30sp"
+                                tools:text="92" />
+                        </FrameLayout>
+                        <LinearLayout
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:fontFamily="sans-serif-medium"
-                            android:textColor="@color/text_primary"
-                            android:textSize="42sp"
-                            tools:text="92점" />
-                        <TextView
-                            android:id="@+id/tvSafetyGrade"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp"
-                            android:background="@drawable/bg_badge_safe"
-                            android:fontFamily="sans-serif-medium"
-                            android:paddingHorizontal="11dp"
-                            android:paddingVertical="6dp"
-                            android:textColor="@color/status_safe"
-                            android:textSize="13sp"
-                            tools:text="안전" />
+                            android:layout_marginStart="18dp"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+                            <TextView
+                                android:id="@+id/tvSafetyGrade"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_badge_safe"
+                                android:fontFamily="sans-serif-medium"
+                                android:paddingHorizontal="11dp"
+                                android:paddingVertical="6dp"
+                                android:textColor="@color/status_safe"
+                                android:textSize="13sp"
+                                tools:text="안전" />
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:lineSpacingMultiplier="1.25"
+                                android:text="운전 중 감지된 졸음 기록을 기반으로 계산한 점수입니다."
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
                     </LinearLayout>
 
                     <View
@@ -217,15 +238,16 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="18dp"
-                        android:background="@drawable/bg_surface_soft"
+                        android:background="@android:color/transparent"
                         android:gravity="center_vertical"
                         android:orientation="horizontal"
-                        android:padding="12dp">
+                        android:paddingHorizontal="2dp"
+                        android:paddingVertical="10dp">
                         <ImageView
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:contentDescription="가장 위험한 시간대"
-                            android:src="@android:drawable/ic_lock_idle_alarm"
+                            android:src="@drawable/ic_clock"
                             android:tint="@color/status_warn" />
                         <TextView
                             android:layout_width="0dp"
@@ -254,9 +276,9 @@
                 android:layout_marginTop="14dp"
                 app:cardBackgroundColor="@color/bg_card"
                 app:cardCornerRadius="22dp"
-                app:cardElevation="1dp"
+                app:cardElevation="0dp"
                 app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
+                app:strokeWidth="0dp">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -265,10 +287,8 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:fontFamily="sans-serif-medium"
                         android:text="@string/sleep_chart_label"
-                        android:textColor="@color/text_primary"
-                        android:textSize="16sp" />
+                        android:textAppearance="@style/TextAppearance.NSND.Title" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -301,17 +321,45 @@
                 android:layout_marginTop="20dp"
                 android:visibility="gone" />
 
-            <TextView
-                android:id="@+id/tvSleepEmpty"
+            <LinearLayout
+                android:id="@+id/layoutSleepEmpty"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center"
-                android:lineSpacingMultiplier="1.4"
-                android:paddingVertical="36dp"
-                android:text="아직 수면 데이터가 없습니다.\n시스템을 작동하면 수면 상태가 자동으로 기록됩니다."
-                android:textColor="@color/text_hint"
-                android:textSize="14sp"
-                android:visibility="gone" />
+                android:orientation="vertical"
+                android:paddingVertical="30dp"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/ivSleepEmpty"
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_icon_blue"
+                    android:contentDescription="수면 데이터 상태"
+                    android:padding="10dp"
+                    android:src="@drawable/ic_clock"
+                    android:tint="@color/accent_primary" />
+
+                <TextView
+                    android:id="@+id/tvSleepEmpty"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center"
+                    android:lineSpacingMultiplier="1.4"
+                    android:text="아직 수면 데이터가 없습니다.\n시스템을 작동하면 수면 상태가 자동으로 기록됩니다."
+                    android:textColor="@color/text_hint"
+                    android:textSize="14sp" />
+
+                <Button
+                    android:id="@+id/btnRetrySleep"
+                    style="@style/Widget.NSND.Button.Secondary"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="14dp"
+                    android:text="다시 시도"
+                    android:visibility="gone" />
+            </LinearLayout>
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvSleepEvents"

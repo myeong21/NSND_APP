@@ -1,10 +1,11 @@
 package com.jsm.nsnd.ui.overlay
 
 import android.os.Bundle
+import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.view.animation.AnimationUtils
-import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import com.jsm.nsnd.R
 import com.jsm.nsnd.databinding.ActivityAlertOverlayBinding
 import android.os.Handler
@@ -24,7 +25,7 @@ class AlertOverlayActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         // TODO: 젯슨 나노에서 수신한 실제 수면 단계로 교체
-        val stage = intent.getIntExtra(EXTRA_STAGE, 1)
+        val stage = intent.getIntExtra(EXTRA_STAGE, 1).coerceIn(1, 3)
 
         setupStageDisplay(stage)
         setupStageIndicator(stage)
@@ -36,6 +37,26 @@ class AlertOverlayActivity : AppCompatActivity() {
     // 단계별 화면 설정
     // ─────────────────────────────────────────
     private fun setupStageDisplay(stage: Int) {
+        val stageColor = ContextCompat.getColor(this, stageColor(stage))
+        binding.ivWarningIcon.setColorFilter(stageColor)
+        binding.tvAlertStage.setTextColor(stageColor)
+        binding.tvAlertStage.setBackgroundResource(
+            when (stage) {
+                1 -> R.drawable.bg_badge_stage1
+                2 -> R.drawable.bg_badge_stage2
+                else -> R.drawable.bg_badge_stage3
+            }
+        )
+
+        // 같은 빨강을 투명도만 높여 위험도가 즉시 읽히도록 한다.
+        val dangerRed = ContextCompat.getColor(this, R.color.alert_red)
+        val tintAlpha = when (stage) {
+            1 -> 18
+            2 -> 34
+            else -> 54
+        }
+        binding.viewStageTint.setBackgroundColor(withAlpha(dangerRed, tintAlpha))
+
         when (stage) {
             1 -> {
                 binding.tvAlertStage.text = getString(R.string.alert_stage_1)
@@ -57,21 +78,30 @@ class AlertOverlayActivity : AppCompatActivity() {
     // ─────────────────────────────────────────
     private fun setupStageIndicator(stage: Int) {
         binding.layoutStageIndicator.removeAllViews()
-        val dotSize = resources.getDimensionPixelSize(R.dimen.step_dot_size)
-        val dotMargin = resources.getDimensionPixelSize(R.dimen.step_dot_margin)
+        val segmentHeight = dp(10)
+        val segmentMargin = dp(4)
+        val inactiveColor = ContextCompat.getColor(this, R.color.bg_card)
+        val borderColor = ContextCompat.getColor(this, R.color.border)
 
         for (i in 1..3) {
-            val dot = View(this)
-            val params = android.widget.LinearLayout.LayoutParams(dotSize * 2, dotSize * 2)
-            params.marginStart = dotMargin * 2
-            params.marginEnd = dotMargin * 2
-            dot.layoutParams = params
-            dot.background = if (i <= stage) {
-                getDrawable(R.drawable.bg_dot_white_active)
-            } else {
-                getDrawable(R.drawable.bg_dot_white_inactive)
+            val segment = View(this)
+            val params = android.widget.LinearLayout.LayoutParams(0, segmentHeight, 1f).apply {
+                marginStart = segmentMargin
+                marginEnd = segmentMargin
             }
-            binding.layoutStageIndicator.addView(dot)
+            segment.layoutParams = params
+            segment.contentDescription = if (i <= stage) "$i 단계 활성" else "$i 단계 비활성"
+            segment.background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = segmentHeight / 2f
+                if (i <= stage) {
+                    setColor(ContextCompat.getColor(this@AlertOverlayActivity, stageColor(i)))
+                } else {
+                    setColor(inactiveColor)
+                    setStroke(dp(1), borderColor)
+                }
+            }
+            binding.layoutStageIndicator.addView(segment)
         }
     }
 
@@ -86,10 +116,26 @@ class AlertOverlayActivity : AppCompatActivity() {
         // 2단계 이상이면 배경 깜빡임 추가
         if (stage >= 2) {
             binding.viewFlash.visibility = View.VISIBLE
+            val flashAlpha = if (stage == 2) 20 else 34
+            binding.viewFlash.setBackgroundColor(
+                withAlpha(ContextCompat.getColor(this, R.color.alert_red), flashAlpha)
+            )
             val flashAnim = AnimationUtils.loadAnimation(this, R.anim.flash_bg)
             binding.viewFlash.startAnimation(flashAnim)
         }
     }
+
+    private fun stageColor(stage: Int): Int = when (stage) {
+        1 -> R.color.stage_1
+        2 -> R.color.stage_2
+        else -> R.color.stage_3
+    }
+
+    private fun withAlpha(color: Int, alpha: Int): Int =
+        (alpha.coerceIn(0, 255) shl 24) or (color and 0x00FFFFFF)
+
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
 
     // ─────────────────────────────────────────
     // 확인 버튼

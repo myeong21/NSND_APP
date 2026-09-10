@@ -11,13 +11,13 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@color/bg_primary">
+        android:background="@drawable/bg_app_ambient">
 
         <com.google.android.material.appbar.AppBarLayout
             android:id="@+id/appBarLayout"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:background="@color/bg_primary"
+            android:background="@android:color/transparent"
             app:elevation="0dp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -27,17 +27,15 @@
                 android:id="@+id/toolbar"
                 android:layout_width="match_parent"
                 android:layout_height="64dp"
-                android:background="@color/bg_primary"
+                android:background="@android:color/transparent"
                 android:paddingHorizontal="16dp">
 
                 <TextView
                     android:id="@+id/tvToolbarTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:fontFamily="sans-serif-medium"
                     android:text="@string/app_name"
-                    android:textColor="@color/text_primary"
-                    android:textSize="22sp" />
+                    android:textAppearance="@style/TextAppearance.NSND.TitleLarge" />
 
                 <ImageButton
                     android:id="@+id/btnAccount"
@@ -68,7 +66,7 @@
             android:id="@+id/bottomNavigation"
             android:layout_width="0dp"
             android:layout_height="80dp"
-            android:background="@color/nav_bg"
+            android:background="@drawable/bg_bottom_nav_glass"
             android:padding="0dp"
             app:elevation="10dp"
             app:itemIconSize="23dp"
@@ -86,7 +84,7 @@
         android:layout_width="320dp"
         android:layout_height="match_parent"
         android:layout_gravity="end"
-        android:background="@color/bg_secondary"
+        android:background="@drawable/bg_sidebar_glass"
         android:fitsSystemWindows="true"
         android:orientation="vertical">
 
@@ -220,7 +218,7 @@
                         android:layout_width="22dp"
                         android:layout_height="22dp"
                         android:contentDescription="서버 주소 설정"
-                        android:src="@android:drawable/ic_menu_manage"
+                        android:src="@drawable/ic_server"
                         android:tint="@color/accent_primary" />
 
                     <LinearLayout
@@ -269,7 +267,7 @@
                         android:layout_width="22dp"
                         android:layout_height="22dp"
                         android:contentDescription="로그아웃"
-                        android:src="@android:drawable/ic_menu_revert"
+                        android:src="@drawable/ic_logout"
                         android:tint="@color/text_secondary" />
                     <TextView
                         android:layout_width="wrap_content"
@@ -295,7 +293,7 @@
                         android:layout_width="22dp"
                         android:layout_height="22dp"
                         android:contentDescription="회원탈퇴"
-                        android:src="@android:drawable/ic_menu_close_clear_cancel"
+                        android:src="@drawable/ic_delete_account"
                         android:tint="@color/alert_red" />
                     <TextView
                         android:layout_width="wrap_content"
