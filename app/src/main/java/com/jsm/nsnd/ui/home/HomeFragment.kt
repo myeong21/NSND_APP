@@ -26,8 +26,11 @@ import com.jsm.nsnd.network.model.SessionEndRequest
 import com.jsm.nsnd.ui.auth.LoginActivity
 import com.jsm.nsnd.ui.contact.ContactItem
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
@@ -35,8 +38,17 @@ import org.json.JSONObject
 import retrofit2.HttpException
 import androidx.fragment.app.activityViewModels
 import com.jsm.nsnd.ui.SharedContactViewModel
+import com.jsm.nsnd.ui.common.ApiErrorMessage
 
 class HomeFragment : Fragment() {
+
+    private enum class ServerStatus { CHECKING, AVAILABLE, UNAVAILABLE }
+
+    companion object {
+        private const val STATE_CONNECTED = "state_connected"
+        private const val STATE_SESSION_ID = "state_session_id"
+        private const val STATE_LAST_ALERT_STAGE = "state_last_alert_stage"
+    }
 
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
@@ -44,6 +56,8 @@ class HomeFragment : Fragment() {
     private var isConnected = false
     private var currentSessionId: Int = -1
     private var webSocket: WebSocket? = null
+    private var serverStatus = ServerStatus.CHECKING
+    private var isStartingDetection = false
 
     // 단계별 경보 중복 방지 플래그
     private var lastAlertedStage = 0
@@ -59,9 +73,24 @@ class HomeFragment : Fragment() {
 
     private val sharedViewModel: SharedContactViewModel by activityViewModels()
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        isConnected = savedInstanceState?.getBoolean(STATE_CONNECTED, false) ?: false
+        currentSessionId = savedInstanceState?.getInt(STATE_SESSION_ID, -1) ?: -1
+        lastAlertedStage = savedInstanceState?.getInt(STATE_LAST_ALERT_STAGE, 0) ?: 0
+    }
+
     private val smsPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) sendEmergencySms()
+            if (granted) {
+                sendEmergencySms()
+            } else {
+                Toast.makeText(
+                    requireContext(),
+                    "SMS 권한이 없어 긴급 메시지를 발송할 수 없습니다.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
 
     // 경보창이 닫히면 isAlertActive 해제
@@ -87,7 +116,13 @@ class HomeFragment : Fragment() {
         setupEventRecyclerView()
         setupStartButton()
         setupStopButton()
+        setupRefreshButton()
         updateConnectionState()
+
+        // 테마 변경은 Activity를 다시 만들므로, 진행 중이던 서버 세션에는 재접속만 합니다.
+        if (isConnected && currentSessionId != -1) {
+            connectWebSocket(currentSessionId)
+        }
 
         // 연락처 변경 관찰
         sharedViewModel.contacts.observe(viewLifecycleOwner) { contacts ->
@@ -142,7 +177,118 @@ class HomeFragment : Fragment() {
     // ─────────────────────────────────────────
     private fun setupStartButton() {
         binding.btnStart.setOnClickListener {
-            startDetection()
+            when {
+                isStartingDetection -> Toast.makeText(
+                    requireContext(),
+                    "시스템 연결을 진행하고 있습니다. 잠시만 기다려주세요.",
+                    Toast.LENGTH_SHORT
+                ).show()
+                serverStatus == ServerStatus.AVAILABLE -> startDetection()
+                serverStatus == ServerStatus.CHECKING -> Toast.makeText(
+                    requireContext(),
+                    "서버 연결 상태를 확인하고 있습니다.",
+                    Toast.LENGTH_SHORT
+                ).show()
+                else -> {
+                    Toast.makeText(
+                        requireContext(),
+                        "서버에 연결할 수 없습니다. 서버 실행 상태와 주소를 확인한 뒤 다시 시도하세요.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    checkServerStatus(showResultToast = true)
+                }
+            }
+        }
+    }
+
+    private fun setupRefreshButton() {
+        binding.btnRefreshServer.setOnClickListener {
+            binding.btnRefreshServer.animate()
+                .rotationBy(360f)
+                .setDuration(450L)
+                .start()
+            checkServerStatus(showResultToast = true)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!isConnected && _binding != null) checkServerStatus()
+    }
+
+    private fun checkServerStatus(showResultToast: Boolean = false) {
+        serverStatus = ServerStatus.CHECKING
+        updateServerStatusUi()
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val response = withTimeout(8_000L) {
+                    RetrofitClient.apiService(requireContext()).healthCheck()
+                }
+                serverStatus = if (response.status.equals("ok", ignoreCase = true)) {
+                    ServerStatus.AVAILABLE
+                } else {
+                    ServerStatus.UNAVAILABLE
+                }
+                if (showResultToast && serverStatus == ServerStatus.AVAILABLE) {
+                    Toast.makeText(requireContext(), "서버 연결이 확인되었습니다.", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: TimeoutCancellationException) {
+                serverStatus = ServerStatus.UNAVAILABLE
+                if (showResultToast && isAdded) {
+                    Toast.makeText(
+                        requireContext(),
+                        "서버가 8초 안에 응답하지 않았습니다. 서버 주소와 네트워크를 확인하세요.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("HomeFragment", "healthCheck error", e)
+                serverStatus = ServerStatus.UNAVAILABLE
+                if (showResultToast && isAdded) {
+                    Toast.makeText(
+                        requireContext(),
+                        ApiErrorMessage.fromThrowable(e, "서버 상태 확인"),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } finally {
+                if (_binding != null) updateServerStatusUi()
+            }
+        }
+    }
+
+    private fun updateServerStatusUi() {
+        if (_binding == null || isConnected) return
+        when (serverStatus) {
+            ServerStatus.CHECKING -> {
+                binding.layoutServerStatusIcon.setBackgroundResource(R.drawable.bg_icon_blue)
+                binding.ivServerStatus.setImageResource(android.R.drawable.presence_away)
+                binding.ivServerStatus.setColorFilter(requireContext().getColor(R.color.accent_primary))
+                binding.tvSystemAvailability.text = "서버 연결 확인 중"
+                binding.tvSystemAvailabilityDescription.text = "시스템 연결 상태를 확인하고 있습니다."
+                binding.btnStart.alpha = 0.72f
+            }
+            ServerStatus.AVAILABLE -> {
+                binding.layoutServerStatusIcon.setBackgroundResource(R.drawable.bg_icon_safe)
+                binding.ivServerStatus.setImageResource(android.R.drawable.presence_online)
+                binding.ivServerStatus.setColorFilter(requireContext().getColor(R.color.status_safe))
+                binding.tvSystemAvailability.text = "시스템 준비 완료"
+                binding.tvSystemAvailabilityDescription.text =
+                    "작동을 시작하면 운전자 상태를 실시간으로 확인합니다."
+                binding.btnStart.alpha = 1f
+            }
+            ServerStatus.UNAVAILABLE -> {
+                binding.layoutServerStatusIcon.setBackgroundResource(R.drawable.bg_icon_danger)
+                binding.ivServerStatus.setImageResource(android.R.drawable.presence_offline)
+                binding.ivServerStatus.setColorFilter(requireContext().getColor(R.color.status_danger))
+                binding.tvSystemAvailability.text = "서버 연결 안 됨"
+                binding.tvSystemAvailabilityDescription.text =
+                    "서버 실행 상태와 설정된 서버 주소를 확인해주세요."
+                binding.btnStart.alpha = 1f
+            }
         }
     }
 
@@ -159,7 +305,12 @@ class HomeFragment : Fragment() {
     // 감지 시작: 세션 시작 → 감지 시작 → WebSocket 연결
     // ─────────────────────────────────────────
     private fun startDetection() {
-        lifecycleScope.launch {
+        if (isStartingDetection) return
+        isStartingDetection = true
+        binding.btnStart.isEnabled = false
+        binding.btnStart.text = "시스템 연결 중..."
+
+        viewLifecycleOwner.lifecycleScope.launch {
             try {
                 // 1. 세션 시작
                 val sessionResp = RetrofitClient.apiService(requireContext()).startSession(
@@ -181,16 +332,27 @@ class HomeFragment : Fragment() {
                 // 4. WebSocket 연결
                 connectWebSocket(currentSessionId)
 
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: HttpException) {
                 if (e.code() == 401) {
                     handleSessionExpired()
                 } else {
+                    serverStatus = ServerStatus.AVAILABLE
                     Log.e("HomeFragment", "startDetection error", e)
-                    Toast.makeText(requireContext(), "서버 연결 실패: ${e.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), ApiErrorMessage.fromHttpException(e), Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
+                serverStatus = ServerStatus.UNAVAILABLE
                 Log.e("HomeFragment", "startDetection error", e)
-                Toast.makeText(requireContext(), "서버 연결 실패: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), ApiErrorMessage.fromThrowable(e, "감지 시작"), Toast.LENGTH_LONG).show()
+            } finally {
+                isStartingDetection = false
+                if (_binding != null && !isConnected) {
+                    binding.btnStart.isEnabled = true
+                    binding.btnStart.text = getString(R.string.home_start_btn)
+                    updateServerStatusUi()
+                }
             }
         }
     }
@@ -231,14 +393,25 @@ class HomeFragment : Fragment() {
                     RetrofitClient.authHeader(token),
                     SessionEndRequest(currentSessionId)
                 )
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("HomeFragment", "stopDetection error", e)
+                if (isAdded && _binding != null) {
+                    Toast.makeText(
+                        requireContext(),
+                        ApiErrorMessage.fromThrowable(e, "감지 종료"),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
             } finally {
                 currentSessionId = -1
                 isConnected = false
                 withContext(Dispatchers.Main) {
-                    updateSleepStage(0)
-                    updateConnectionState()
+                    if (_binding != null) {
+                        updateSleepStage(0)
+                        updateConnectionState()
+                    }
                 }
             }
         }
@@ -262,8 +435,12 @@ class HomeFragment : Fragment() {
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     Log.e("HomeFragment", "WebSocket failure", t)
                     Handler(Looper.getMainLooper()).post {
-                        if (isConnected) {
-                            Toast.makeText(requireContext(), "연결 끊김: ${t.message}", Toast.LENGTH_SHORT).show()
+                        if (isConnected && isAdded && _binding != null) {
+                            Toast.makeText(
+                                requireContext(),
+                                ApiErrorMessage.fromThrowable(t, "실시간 연결"),
+                                Toast.LENGTH_LONG
+                            ).show()
                             stopDetection()
                         }
                     }
@@ -335,7 +512,14 @@ class HomeFragment : Fragment() {
     }
 
     private fun sendEmergencySms() {
-        if (contactList.isEmpty()) return
+        if (contactList.isEmpty()) {
+            Toast.makeText(
+                requireContext(),
+                "등록된 긴급 연락처가 없어 SMS를 발송하지 못했습니다.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
         try {
             val smsManager = SmsManager.getDefault()
             contactList.forEach { contact ->
@@ -343,6 +527,11 @@ class HomeFragment : Fragment() {
             }
         } catch (e: Exception) {
             Log.e("HomeFragment", "SMS send error", e)
+            Toast.makeText(
+                requireContext(),
+                "긴급 SMS 발송에 실패했습니다: ${e.message ?: "알 수 없는 오류"}",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 
@@ -408,5 +597,12 @@ class HomeFragment : Fragment() {
         super.onDestroyView()
         webSocket?.close(1000, "View destroyed")
         _binding = null
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean(STATE_CONNECTED, isConnected)
+        outState.putInt(STATE_SESSION_ID, currentSessionId)
+        outState.putInt(STATE_LAST_ALERT_STAGE, lastAlertedStage)
+        super.onSaveInstanceState(outState)
     }
 }

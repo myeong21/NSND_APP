@@ -1,252 +1,340 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:background="@color/bg_primary"
-    android:padding="16dp"
+    android:clipToPadding="false"
+    android:fillViewport="true"
+    android:paddingBottom="16dp"
     tools:context=".ui.home.HomeFragment">
 
-    <!-- CO₂ 카드 (상단 절반) -->
-    <androidx.cardview.widget.CardView
-        android:id="@+id/cardCo2"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:layout_marginBottom="12dp"
-        app:cardBackgroundColor="@color/bg_card"
-        app:cardCornerRadius="16dp"
-        app:cardElevation="0dp">
-
-        <androidx.constraintlayout.widget.ConstraintLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:padding="20dp">
-
-            <TextView
-                android:id="@+id/tvCo2Label"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/home_co2_label"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp"
-                app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintStart_toStartOf="parent" />
-
-            <TextView
-                android:id="@+id/tvCo2Value"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/text_primary"
-                android:textSize="52sp"
-                android:fontFamily="sans-serif-light"
-                tools:text="1,240"
-                app:layout_constraintTop_toBottomOf="@id/tvCo2Label"
-                app:layout_constraintStart_toStartOf="parent" />
-
-            <TextView
-                android:id="@+id/tvCo2Unit"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/home_co2_unit"
-                android:textColor="@color/text_secondary"
-                android:textSize="16sp"
-                android:layout_marginStart="6dp"
-                android:layout_marginBottom="10dp"
-                app:layout_constraintStart_toEndOf="@id/tvCo2Value"
-                app:layout_constraintBottom_toBottomOf="@id/tvCo2Value" />
-
-            <TextView
-                android:id="@+id/tvCo2Time"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/text_hint"
-                android:textSize="12sp"
-                tools:text="측정시각 09:41"
-                app:layout_constraintTop_toBottomOf="@id/tvCo2Value"
-                app:layout_constraintStart_toStartOf="parent" />
-
-            <TextView
-                android:id="@+id/tvCo2Status"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="14dp"
-                android:paddingVertical="6dp"
-                android:textSize="13sp"
-                android:fontFamily="sans-serif-medium"
-                android:background="@drawable/bg_badge_warn"
-                tools:text="환기를 권장합니다"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintStart_toStartOf="parent" />
-
-        </androidx.constraintlayout.widget.ConstraintLayout>
-
-    </androidx.cardview.widget.CardView>
-
-    <!-- 하단 절반: 연결 전 -->
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/layoutDisconnected"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:visibility="visible">
-
-        <Button
-            android:id="@+id/btnStart"
-            android:layout_width="0dp"
-            android:layout_height="72dp"
-            android:text="@string/home_start_btn"
-            android:textSize="18sp"
-            android:fontFamily="sans-serif-medium"
-            android:backgroundTint="@color/accent_primary"
-            android:textColor="@color/text_primary"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
-
-    <!-- 하단 절반: 연결 후 -->
     <LinearLayout
-        android:id="@+id/layoutConnected"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:orientation="horizontal"
-        android:visibility="gone"
-        android:baselineAligned="false">
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="4dp">
 
-        <!-- 좌측: 수면 단계 -->
-        <androidx.cardview.widget.CardView
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:layout_marginEnd="8dp"
-            app:cardBackgroundColor="@color/bg_card"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp">
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardCo2"
+            android:layout_width="match_parent"
+            android:layout_height="238dp"
+            android:layout_marginTop="8dp"
+            app:cardBackgroundColor="@android:color/transparent"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="0dp"
+            app:cardPreventCornerOverlap="false">
 
             <androidx.constraintlayout.widget.ConstraintLayout
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:padding="16dp">
+                android:background="@drawable/bg_hero_co2"
+                android:padding="22dp">
 
                 <TextView
-                    android:id="@+id/tvStageLabel"
+                    android:id="@+id/tvCo2Label"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/home_sleep_stage_label"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp"
-                    app:layout_constraintTop_toTopOf="parent"
-                    app:layout_constraintStart_toStartOf="parent" />
-
-                <TextView
-                    android:id="@+id/tvStageNumber"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="@color/accent_primary"
-                    android:textSize="56sp"
-                    android:fontFamily="sans-serif-light"
-                    tools:text="0"
-                    app:layout_constraintTop_toBottomOf="@id/tvStageLabel"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintBottom_toTopOf="@id/tvStageUnit" />
-
-                <TextView
-                    android:id="@+id/tvStageUnit"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/home_sleep_stage_unit"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp"
-                    app:layout_constraintBottom_toTopOf="@id/tvStageStatus"
-                    app:layout_constraintStart_toStartOf="parent" />
-
-                <TextView
-                    android:id="@+id/tvStageStatus"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:paddingHorizontal="12dp"
-                    android:paddingVertical="5dp"
-                    android:textSize="12sp"
                     android:fontFamily="sans-serif-medium"
-                    android:text="@string/home_sleep_normal"
-                    android:background="@drawable/bg_badge_safe"
-                    app:layout_constraintBottom_toTopOf="@id/btnTestAlert"
-                    app:layout_constraintStart_toStartOf="parent" />
-
-                <!-- 변경 후: (btnTestAlert constraint 수정 + btnStop 추가) -->
-                <!-- 임시 경보 테스트 버튼 - 개발 완료 후 제거 -->
-                <Button
-                    android:id="@+id/btnTestAlert"
-                    android:layout_width="0dp"
-                    android:layout_height="36dp"
-                    android:text="경보 테스트"
-                    android:textSize="11sp"
-                    android:backgroundTint="@color/alert_red"
-                    android:textColor="#FFFFFF"
-                    android:layout_marginBottom="4dp"
-                    app:layout_constraintBottom_toTopOf="@id/btnStop"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent" />
-
-                <!-- 작동 종료 버튼 -->
-                <Button
-                    android:id="@+id/btnStop"
-                    android:layout_width="0dp"
-                    android:layout_height="36dp"
-                    android:text="작동 종료"
-                    android:textSize="11sp"
-                    android:backgroundTint="@color/dark_bg_card"
+                    android:text="@string/home_co2_label"
                     android:textColor="@color/text_secondary"
-                    android:layout_marginBottom="8dp"
-                    app:layout_constraintBottom_toBottomOf="parent"
+                    android:textSize="14sp"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent" />
+                    app:layout_constraintTop_toTopOf="parent" />
 
-            </androidx.constraintlayout.widget.ConstraintLayout>
-
-        </androidx.cardview.widget.CardView>
-
-        <!-- 우측: 이벤트 리스트 -->
-        <androidx.cardview.widget.CardView
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            app:cardBackgroundColor="@color/bg_card"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:padding="14dp">
+                <FrameLayout
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="@drawable/bg_icon_blue"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintTop_toTopOf="parent">
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="center"
+                        android:contentDescription="실내 공기 상태"
+                        android:src="@drawable/ic_air" />
+                </FrameLayout>
 
                 <TextView
+                    android:id="@+id/tvCo2Value"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/home_event_label"
+                    android:layout_marginTop="14dp"
+                    android:fontFamily="sans-serif-light"
+                    android:textColor="@color/text_primary"
+                    android:textSize="52sp"
+                    tools:text="1,240"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toBottomOf="@id/tvCo2Label" />
+
+                <TextView
+                    android:id="@+id/tvCo2Unit"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_marginBottom="12dp"
+                    android:text="@string/home_co2_unit"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="16sp"
+                    app:layout_constraintBottom_toBottomOf="@id/tvCo2Value"
+                    app:layout_constraintStart_toEndOf="@id/tvCo2Value" />
+
+                <TextView
+                    android:id="@+id/tvCo2Status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:background="@drawable/bg_badge_warn"
+                    android:fontFamily="sans-serif-medium"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="6dp"
+                    android:textSize="13sp"
+                    tools:text="환기를 권장합니다"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toBottomOf="@id/tvCo2Value" />
+
+                <TextView
+                    android:id="@+id/tvCo2Time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp"
-                    android:layout_marginBottom="8dp" />
+                    tools:text="마지막 측정 09:41"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toBottomOf="@id/tvCo2Status" />
+            </androidx.constraintlayout.widget.ConstraintLayout>
+        </com.google.android.material.card.MaterialCardView>
 
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/rvEvents"
+        <LinearLayout
+            android:id="@+id/layoutDisconnected"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="vertical"
+            android:visibility="visible">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardBackgroundColor="@color/bg_card"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="1dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="20dp">
+                    <FrameLayout
+                        android:id="@+id/layoutServerStatusIcon"
+                        android:layout_width="46dp"
+                        android:layout_height="46dp"
+                        android:background="@drawable/bg_icon_blue">
+                        <ImageView
+                            android:id="@+id/ivServerStatus"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="시스템 준비"
+                            android:src="@android:drawable/presence_away"
+                            android:tint="@color/accent_primary" />
+                    </FrameLayout>
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="14dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView
+                            android:id="@+id/tvSystemAvailability"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="sans-serif-medium"
+                            android:text="서버 연결 확인 중"
+                            android:textColor="@color/text_primary"
+                            android:textSize="16sp" />
+                        <TextView
+                            android:id="@+id/tvSystemAvailabilityDescription"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="시스템 연결 상태를 확인하고 있습니다."
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <ImageButton
+                        android:id="@+id/btnRefreshServer"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:layout_marginStart="10dp"
+                        android:background="@drawable/bg_icon_blue"
+                        android:contentDescription="서버 상태 새로고침"
+                        android:padding="11dp"
+                        android:src="@android:drawable/ic_popup_sync"
+                        android:tint="@color/accent_primary" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <Button
+                android:id="@+id/btnStart"
+                style="@style/Widget.NSND.Button.Primary"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:layout_marginTop="16dp"
+                android:drawableStart="@drawable/ic_power"
+                android:drawablePadding="10dp"
+                android:text="@string/home_start_btn"
+                android:textSize="17sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/layoutConnected"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardBackgroundColor="@color/bg_card"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="1dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <androidx.constraintlayout.widget.ConstraintLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="20dp">
+
+                    <TextView
+                        android:id="@+id/tvStageLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/home_sleep_stage_label"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent" />
+
+                    <TextView
+                        android:id="@+id/tvStageNumber"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:fontFamily="sans-serif-light"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="62sp"
+                        tools:text="0"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toBottomOf="@id/tvStageLabel" />
+
+                    <TextView
+                        android:id="@+id/tvStageUnit"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:layout_marginBottom="14dp"
+                        android:text="@string/home_sleep_stage_unit"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp"
+                        app:layout_constraintBottom_toBottomOf="@id/tvStageNumber"
+                        app:layout_constraintStart_toEndOf="@id/tvStageNumber" />
+
+                    <TextView
+                        android:id="@+id/tvStageStatus"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_badge_safe"
+                        android:fontFamily="sans-serif-medium"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="6dp"
+                        android:text="@string/home_sleep_normal"
+                        android:textSize="13sp"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toBottomOf="@id/tvStageNumber" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="16dp"
+                        android:text="실시간 감지 중\n현재 운전자 상태를 확인하세요"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        app:layout_constraintBottom_toBottomOf="@id/tvStageStatus"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toEndOf="@id/tvStageStatus"
+                        app:layout_constraintTop_toTopOf="@id/tvStageStatus" />
+
+                    <Button
+                        android:id="@+id/btnTestAlert"
+                        style="@style/Widget.NSND.Button.Secondary"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="22dp"
+                        android:text="경보 테스트"
+                        android:textSize="13sp"
+                        app:layout_constraintEnd_toStartOf="@id/btnStop"
+                        app:layout_constraintHorizontal_chainStyle="spread"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toBottomOf="@id/tvStageStatus" />
+
+                    <Button
+                        android:id="@+id/btnStop"
+                        style="@style/Widget.NSND.Button.Danger"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_marginStart="10dp"
+                        android:text="@string/home_stop_btn"
+                        android:textSize="13sp"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toEndOf="@id/btnTestAlert"
+                        app:layout_constraintTop_toTopOf="@id/btnTestAlert" />
+                </androidx.constraintlayout.widget.ConstraintLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="180dp"
+                android:layout_marginTop="14dp"
+                app:cardBackgroundColor="@color/bg_card"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="1dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:nestedScrollingEnabled="true"
-                    tools:listitem="@layout/item_event_card" />
-
-            </LinearLayout>
-
-        </androidx.cardview.widget.CardView>
-
+                    android:orientation="vertical"
+                    android:padding="18dp">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="@string/home_event_label"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp" />
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/rvEvents"
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_marginTop="8dp"
+                        android:layout_weight="1"
+                        android:clipToPadding="false"
+                        tools:listitem="@layout/item_event_card" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
     </LinearLayout>
-
-</LinearLayout>
+</androidx.core.widget.NestedScrollView>

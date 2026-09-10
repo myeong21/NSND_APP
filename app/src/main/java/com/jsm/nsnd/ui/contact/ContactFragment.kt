@@ -22,6 +22,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.activityViewModels
 import com.jsm.nsnd.ui.SharedContactViewModel
 import android.content.Context
+import com.jsm.nsnd.data.session.SessionManager
 
 class ContactFragment : Fragment() {
 
@@ -32,18 +33,27 @@ class ContactFragment : Fragment() {
     private lateinit var adapter: ContactAdapter
     private val sharedViewModel: SharedContactViewModel by activityViewModels()
 
+    private fun contactsPreferenceKey(): String =
+        "contact_list_${SessionManager(requireContext()).getAccountStorageKey()}"
+
     // SharedPreferences 저장/불러오기
     private fun saveContacts() {
         val prefs = requireContext().getSharedPreferences("nsnd_prefs", Context.MODE_PRIVATE)
         val json = contactList.joinToString(separator = "||") {
             "${it.id}::${it.name}::${it.phone}::${it.message}"
         }
-        prefs.edit().putString("contact_list", json).apply()
+        prefs.edit().putString(contactsPreferenceKey(), json).apply()
     }
 
     private fun loadContacts() {
         val prefs = requireContext().getSharedPreferences("nsnd_prefs", Context.MODE_PRIVATE)
-        val json = prefs.getString("contact_list", "") ?: return
+        val accountKey = contactsPreferenceKey()
+        val storedContacts = prefs.getString(accountKey, null)
+        // 기존 설치본의 공용 목록은 처음 로그인한 계정으로 한 번만 이전합니다.
+        val json = storedContacts ?: prefs.getString("contact_list", "") ?: return
+        if (storedContacts == null && json.isNotBlank()) {
+            prefs.edit().putString(accountKey, json).remove("contact_list").apply()
+        }
         if (json.isBlank()) return
         contactList.clear()
         json.split("||").forEach { entry ->
@@ -240,16 +250,23 @@ class ContactFragment : Fragment() {
             return
         }
 
-        val smsManager = SmsManager.getDefault()
-        contactList.forEach { contact ->
-            smsManager.sendTextMessage(contact.phone, null, contact.message, null, null)
+        try {
+            val smsManager = SmsManager.getDefault()
+            contactList.forEach { contact ->
+                smsManager.sendTextMessage(contact.phone, null, contact.message, null, null)
+            }
+            Toast.makeText(
+                requireContext(),
+                "연락처 ${contactList.size}개에 발송했습니다",
+                Toast.LENGTH_SHORT
+            ).show()
+        } catch (e: Exception) {
+            Toast.makeText(
+                requireContext(),
+                "SMS 발송에 실패했습니다: ${e.message ?: "알 수 없는 오류"}",
+                Toast.LENGTH_LONG
+            ).show()
         }
-
-        Toast.makeText(
-            requireContext(),
-            "연락처 ${contactList.size}개에 발송했습니다",
-            Toast.LENGTH_SHORT
-        ).show()
     }
 
     // ─────────────────────────────────────────

@@ -1,173 +1,213 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:background="@color/bg_primary"
+    android:fillViewport="true"
     tools:context=".ui.massager.MassagerFragment">
 
-    <!-- 서브타이틀 -->
-    <TextView
-        android:id="@+id/tvMassagerSubtitle"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/massager_subtitle"
-        android:textColor="@color/text_secondary"
-        android:textSize="13sp"
-        android:paddingHorizontal="16dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="6dp" />
+        android:orientation="vertical"
+        android:padding="16dp">
 
-    <!-- 구분선 -->
-    <View
-        android:id="@+id/dividerMassager"
-        android:layout_width="match_parent"
-        android:layout_height="0.5dp"
-        android:background="@color/divider" />
-
-    <!-- 중앙 컨텐츠 카드 -->
-    <androidx.cardview.widget.CardView
-        android:id="@+id/cardMassager"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:layout_margin="12dp"
-        app:cardBackgroundColor="@color/bg_card"
-        app:cardCornerRadius="20dp"
-        app:cardElevation="0dp">
-
-        <LinearLayout
+        <TextView
+            android:id="@+id/tvMassagerSubtitle"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:padding="16dp">
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="4dp"
+            android:text="@string/massager_subtitle"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
 
-            <!-- 단계 라벨 -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="현재 설정 단계"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp"
-                android:layout_marginBottom="4dp" />
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardMassager"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            app:cardBackgroundColor="@color/bg_card"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="1dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
 
-            <!-- 단계 숫자 -->
-            <TextView
-                android:id="@+id/tvMassageStage"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/accent_primary"
-                android:textSize="64sp"
-                android:fontFamily="sans-serif-light"
-                android:lineSpacingExtra="0dp"
-                tools:text="3" />
-
-            <!-- 단위 -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/massager_stage_unit"
-                android:textColor="@color/text_secondary"
-                android:textSize="14sp"
-                android:layout_marginTop="-4dp"
-                android:layout_marginBottom="16dp" />
-
-            <!-- 진행 바 -->
-            <androidx.constraintlayout.widget.ConstraintLayout
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="6dp">
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:padding="24dp">
 
-                <View
-                    android:id="@+id/progressTrack"
-                    android:layout_width="0dp"
-                    android:layout_height="8dp"
-                    android:background="@drawable/bg_progress_track"
-                    app:layout_constraintTop_toTopOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="현재 설정 단계"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
 
-                <View
-                    android:id="@+id/progressFill"
-                    android:layout_width="0dp"
-                    android:layout_height="8dp"
-                    android:background="@drawable/bg_progress_fill"
-                    app:layout_constraintTop_toTopOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent" />
+                <FrameLayout
+                    android:layout_width="184dp"
+                    android:layout_height="184dp"
+                    android:layout_marginTop="16dp">
 
-            </androidx.constraintlayout.widget.ConstraintLayout>
+                    <com.jsm.nsnd.ui.massager.MassageStageRingView
+                        android:id="@+id/stageRingView"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent" />
 
-            <!-- 단계 점 -->
-            <LinearLayout
-                android:id="@+id/layoutStepDots"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center"
-                android:layout_marginBottom="16dp" />
-
-            <!-- - / + 버튼 -->
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center">
-
-                <Button
-                    android:id="@+id/btnDecrease"
-                    android:layout_width="52dp"
-                    android:layout_height="52dp"
-                    android:text="−"
-                    android:textSize="24sp"
-                    android:textColor="@color/text_primary"
-                    android:backgroundTint="@color/bg_card_elevated"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:padding="0dp" />
+                    <View
+                        android:layout_width="138dp"
+                        android:layout_height="138dp"
+                        android:layout_gravity="center"
+                        android:background="@drawable/bg_stage_inner_circle" />
+                    <TextView
+                        android:id="@+id/tvMassageStage"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_horizontal"
+                        android:layout_marginTop="38dp"
+                        android:fontFamily="sans-serif-light"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="58sp"
+                        tools:text="3" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_horizontal"
+                        android:layout_marginTop="106dp"
+                        android:text="@string/massager_stage_unit"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+                </FrameLayout>
 
                 <TextView
                     android:id="@+id/tvStageRange"
-                    android:layout_width="72dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:gravity="center"
+                    android:layout_marginTop="14dp"
                     android:textColor="@color/text_hint"
-                    android:textSize="12sp"
+                    android:textSize="13sp"
                     tools:text="3 / 5" />
 
-                <Button
-                    android:id="@+id/btnIncrease"
-                    android:layout_width="52dp"
-                    android:layout_height="52dp"
-                    android:text="+"
-                    android:textSize="24sp"
-                    android:textColor="@color/text_primary"
-                    android:backgroundTint="@color/bg_card_elevated"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:padding="0dp" />
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="10dp"
+                    android:layout_marginTop="18dp">
+                    <View
+                        android:id="@+id/progressTrack"
+                        android:layout_width="match_parent"
+                        android:layout_height="10dp"
+                        android:background="@drawable/bg_progress_track" />
+                    <View
+                        android:id="@+id/progressFill"
+                        android:layout_width="0dp"
+                        android:layout_height="10dp"
+                        android:background="@drawable/bg_progress_fill" />
+                </FrameLayout>
 
+                <LinearLayout
+                    android:id="@+id/layoutStepDots"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:gravity="center"
+                    android:orientation="horizontal" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="22dp"
+                    android:gravity="center"
+                    android:orientation="horizontal">
+                    <Button
+                        android:id="@+id/btnDecrease"
+                        style="@style/Widget.NSND.Button.Secondary"
+                        android:layout_width="58dp"
+                        android:layout_height="56dp"
+                        android:text="−"
+                        android:textSize="26sp" />
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginHorizontal="12dp"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:text="강도"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+                    <Button
+                        android:id="@+id/btnIncrease"
+                        style="@style/Widget.NSND.Button.Secondary"
+                        android:layout_width="58dp"
+                        android:layout_height="56dp"
+                        android:text="+"
+                        android:textSize="24sp" />
+                </LinearLayout>
             </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
 
-        </LinearLayout>
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            app:cardBackgroundColor="@color/bg_card"
+            app:cardCornerRadius="18dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="14dp">
+                <FrameLayout
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="@drawable/bg_icon_safe">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_gravity="center"
+                        android:contentDescription="마사지기 설정"
+                        android:src="@drawable/ic_nav_massager"
+                        android:tint="@color/status_safe" />
+                </FrameLayout>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="마사지기 설정"
+                        android:textColor="@color/text_primary"
+                        android:textSize="13sp" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="저장 버튼을 눌러 현재 단계를 적용하세요."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
 
-    </androidx.cardview.widget.CardView>
-
-    <!-- 저장 버튼 -->
-    <Button
-        android:id="@+id/btnSaveMassager"
-        android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:layout_marginHorizontal="16dp"
-        android:layout_marginBottom="72dp"
-        android:text="@string/massager_save"
-        android:textSize="15sp"
-        android:fontFamily="sans-serif-medium"
-        android:backgroundTint="@color/accent_primary"
-        android:textColor="@color/text_primary" />
-
-</LinearLayout>
+        <Button
+            android:id="@+id/btnSaveMassager"
+            style="@style/Widget.NSND.Button.Primary"
+            android:layout_width="match_parent"
+            android:layout_height="58dp"
+            android:layout_marginTop="18dp"
+            android:layout_marginBottom="8dp"
+            android:text="@string/massager_save"
+            android:textSize="16sp" />
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

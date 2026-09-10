@@ -15,6 +15,9 @@
         <item name="android:statusBarColor">@color/light_bg_primary</item>
         <item name="android:navigationBarColor">@color/light_nav_bg</item>
         <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o">true</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowActionModeOverlay">true</item>
 
         <!-- 라이트 모드 속성 연결 -->
         <item name="bg_primary">@color/light_bg_primary</item>
@@ -34,17 +37,52 @@
 
     <style name="Theme.NSND" parent="Base.Theme.NSND" />
 
+    <style name="Theme.NSND.Splash" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">@drawable/bg_splash</item>
+        <item name="android:statusBarColor">@color/splash_blue</item>
+        <item name="android:navigationBarColor">@color/splash_blue</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o">false</item>
+    </style>
+
     <style name="Theme.NSND.Alert" parent="Base.Theme.NSND">
-        <item name="android:windowBackground">@color/alert_red</item>
-        <item name="android:statusBarColor">@color/alert_red</item>
-        <item name="android:navigationBarColor">@color/alert_red</item>
+        <item name="android:windowBackground">@color/bg_primary</item>
+        <item name="android:statusBarColor">@color/bg_primary</item>
+        <item name="android:navigationBarColor">@color/bg_primary</item>
     </style>
 
     <style name="Widget.NSND.ThemeChip" parent="Widget.Material3.Button.TextButton">
         <item name="android:textSize">12sp</item>
-        <item name="android:textColor">@color/light_text_secondary</item>
+        <item name="android:textColor">@color/text_secondary</item>
         <item name="cornerRadius">8dp</item>
         <item name="android:minHeight">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+    </style>
+
+    <style name="Widget.NSND.Button.Primary" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/accent_primary</item>
+        <item name="android:textColor">@android:color/white</item>
+        <item name="cornerRadius">18dp</item>
+        <item name="android:minHeight">56dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+    </style>
+
+    <style name="Widget.NSND.Button.Secondary" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="strokeColor">@color/border</item>
+        <item name="android:textColor">@color/accent_primary</item>
+        <item name="cornerRadius">16dp</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+    </style>
+
+    <style name="Widget.NSND.Button.Danger" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/alert_red_bg</item>
+        <item name="android:textColor">@color/alert_red</item>
+        <item name="cornerRadius">16dp</item>
+        <item name="android:minHeight">52dp</item>
         <item name="android:insetTop">0dp</item>
         <item name="android:insetBottom">0dp</item>
     </style>

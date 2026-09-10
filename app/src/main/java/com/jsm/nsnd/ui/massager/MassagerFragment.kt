@@ -72,6 +72,9 @@ class MassagerFragment : Fragment() {
         // 범위 표시
         binding.tvStageRange.text = "$currentStage / $maxStage"
 
+        // 외곽 링: 단계가 높을수록 더 길고 굵고 진하게 표시
+        binding.stageRingView.setStage(currentStage, maxStage)
+
         // 진행 바 업데이트
         updateProgressBar()
 
@@ -141,9 +144,10 @@ class MassagerFragment : Fragment() {
             requireContext().getColorStateList(R.color.status_safe)
 
         binding.btnSaveMassager.postDelayed({
-            binding.btnSaveMassager.isEnabled = true
-            binding.btnSaveMassager.text = getString(R.string.massager_save)
-            binding.btnSaveMassager.backgroundTintList =
+            val currentBinding = _binding ?: return@postDelayed
+            currentBinding.btnSaveMassager.isEnabled = true
+            currentBinding.btnSaveMassager.text = getString(R.string.massager_save)
+            currentBinding.btnSaveMassager.backgroundTintList =
                 requireContext().getColorStateList(R.color.accent_primary)
         }, 1500)
     }

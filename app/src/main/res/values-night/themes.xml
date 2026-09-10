@@ -15,6 +15,7 @@
         <item name="android:statusBarColor">@color/dark_bg_primary</item>
         <item name="android:navigationBarColor">@color/dark_nav_bg</item>
         <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o">false</item>
 
         <!-- 다크 모드 속성 연결 -->
         <item name="bg_primary">@color/dark_bg_primary</item>

@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -21,6 +22,8 @@ import com.jsm.nsnd.databinding.FragmentSleepDataBinding
 import com.jsm.nsnd.network.RetrofitClient
 import com.jsm.nsnd.network.model.ReportByDateResponse
 import com.jsm.nsnd.ui.auth.LoginActivity
+import com.jsm.nsnd.ui.common.ApiErrorMessage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.text.SimpleDateFormat
@@ -95,7 +98,7 @@ class SleepDataFragment : Fragment() {
         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val dateStr = sdf.format(selectedCalendar.time)
 
-        lifecycleScope.launch {
+        viewLifecycleOwner.lifecycleScope.launch {
             try {
                 showLoading(true)
                 val response = RetrofitClient.apiService(requireContext()).getReportByDate(
@@ -103,16 +106,32 @@ class SleepDataFragment : Fragment() {
                     dateStr
                 )
                 bindReportData(response)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: HttpException) {
                 if (e.code() == 401) {
                     handleSessionExpired()
                 } else {
                     showError()
+                    if (isAdded && _binding != null) {
+                        Toast.makeText(
+                            requireContext(),
+                            ApiErrorMessage.fromHttpException(e),
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 }
             } catch (e: Exception) {
                 showError()
+                if (isAdded && _binding != null) {
+                    Toast.makeText(
+                        requireContext(),
+                        ApiErrorMessage.fromThrowable(e, "수면 데이터 조회"),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
             } finally {
-                showLoading(false)
+                if (_binding != null) showLoading(false)
             }
         }
     }
@@ -251,15 +270,16 @@ class SleepDataFragment : Fragment() {
     // 로딩 / 에러 처리
     // ─────────────────────────────────────────
     private fun showLoading(isLoading: Boolean) {
-        binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
+        _binding?.progressBar?.visibility = if (isLoading) View.VISIBLE else View.GONE
     }
 
     private fun showError() {
-        binding.tvSleepEmpty.visibility = View.VISIBLE
-        binding.tvSleepEmpty.text = "해당 날짜의 운전 기록이 없습니다."
-        binding.rvSleepEvents.visibility = View.GONE
-        binding.cardSafetyScore.visibility = View.GONE
-        binding.cardChart.visibility = View.GONE
+        val currentBinding = _binding ?: return
+        currentBinding.tvSleepEmpty.visibility = View.VISIBLE
+        currentBinding.tvSleepEmpty.text = "해당 날짜의 운전 기록이 없습니다."
+        currentBinding.rvSleepEvents.visibility = View.GONE
+        currentBinding.cardSafetyScore.visibility = View.GONE
+        currentBinding.cardChart.visibility = View.GONE
     }
 
     override fun onDestroyView() {

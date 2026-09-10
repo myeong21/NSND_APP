@@ -1,17 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <color name="bg_primary">#111318</color>
-    <color name="bg_secondary">#1C1E26</color>
-    <color name="bg_card">#23262F</color>
-    <color name="bg_card_elevated">#2A2D38</color>
-    <color name="text_primary">#F0F2FF</color>
-    <color name="text_secondary">#9DA3B4</color>
-    <color name="text_hint">#555A6E</color>
-    <color name="divider">#2A2D38</color>
-    <color name="border">#32364A</color>
-    <color name="nav_bg">#1C1E26</color>
-    <color name="nav_active">#4D8EFF</color>
-    <color name="nav_inactive">#555A6E</color>
+    <!-- 다크 모드에서는 공통 상태 Surface도 별도 명도 체계를 사용한다. -->
+    <color name="accent_primary">#75A8FF</color>
+    <color name="accent_primary_dark">#4D8EFF</color>
+    <color name="accent_secondary">#21395F</color>
+    <color name="accent_light">#9CC1FF</color>
+    <color name="accent_tint">#172C4A</color>
+    <color name="alert_red_bg">#4A222B</color>
+    <color name="status_safe_bg">#153B35</color>
+    <color name="status_warn_bg">#453719</color>
+    <color name="status_danger_bg">#4A222B</color>
+    <color name="stage_1_bg">#453719</color>
+    <color name="stage_2_bg">#4A301F</color>
+    <color name="stage_3_bg">#4A222B</color>
+
+    <color name="bg_primary">#0F172A</color>
+    <color name="bg_secondary">#17233A</color>
+    <color name="bg_card">#1C2B45</color>
+    <color name="bg_card_elevated">#263854</color>
+    <color name="text_primary">#F4F8FF</color>
+    <color name="text_secondary">#B1C0D5</color>
+    <color name="text_hint">#8191A9</color>
+    <color name="divider">#2A3C57</color>
+    <color name="border">#344966</color>
+    <color name="nav_bg">#17233A</color>
+    <color name="nav_active">#75A8FF</color>
+    <color name="nav_inactive">#8191A9</color>
 
 </resources>

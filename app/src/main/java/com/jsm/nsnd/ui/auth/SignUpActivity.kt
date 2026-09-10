@@ -3,10 +3,12 @@ package com.jsm.nsnd.ui.auth
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
 import com.jsm.nsnd.data.api.ApiClient
 import com.jsm.nsnd.data.api.RegisterRequest
 import com.jsm.nsnd.data.api.UserResponse
 import com.jsm.nsnd.databinding.ActivitySignupBinding
+import com.jsm.nsnd.ui.common.ApiErrorMessage
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -17,6 +19,7 @@ class SignUpActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, true)
         binding = ActivitySignupBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -57,8 +60,8 @@ class SignUpActivity : AppCompatActivity() {
                     } else {
                         Toast.makeText(
                             this@SignUpActivity,
-                            "회원가입에 실패했습니다",
-                            Toast.LENGTH_SHORT
+                            ApiErrorMessage.fromResponse(response),
+                            Toast.LENGTH_LONG
                         ).show()
                     }
                 }
@@ -66,8 +69,8 @@ class SignUpActivity : AppCompatActivity() {
                 override fun onFailure(call: Call<UserResponse>, t: Throwable) {
                     Toast.makeText(
                         this@SignUpActivity,
-                        "서버 연결에 실패했습니다",
-                        Toast.LENGTH_SHORT
+                        ApiErrorMessage.fromThrowable(t, "회원가입"),
+                        Toast.LENGTH_LONG
                     ).show()
                 }
             })

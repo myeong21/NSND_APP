@@ -2,6 +2,7 @@ package com.jsm.nsnd.network
 
 import com.jsm.nsnd.network.model.DetectionRequest
 import com.jsm.nsnd.network.model.DetectionStartResponse
+import com.jsm.nsnd.network.model.HealthResponse
 import com.jsm.nsnd.network.model.ReportByDateResponse
 import com.jsm.nsnd.network.model.ReportHistoryResponse
 import com.jsm.nsnd.network.model.ReportSummaryResponse
@@ -14,6 +15,9 @@ import retrofit2.http.POST
 import retrofit2.http.Query
 
 interface ApiService {
+
+    @GET("health")
+    suspend fun healthCheck(): HealthResponse
 
     @GET("report/summary")
     suspend fun getReportSummary(

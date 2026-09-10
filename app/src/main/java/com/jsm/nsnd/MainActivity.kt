@@ -3,6 +3,11 @@ package com.jsm.nsnd.ui.main
 import android.content.res.Configuration
 import android.os.Bundle
 import android.view.MenuItem
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.updateLayoutParams
+import androidx.core.view.updatePadding
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -20,6 +25,7 @@ import com.jsm.nsnd.data.api.UserResponse
 import com.jsm.nsnd.data.session.ServerConfig
 import com.jsm.nsnd.data.session.SessionManager
 import com.jsm.nsnd.ui.auth.LoginActivity
+import com.jsm.nsnd.ui.common.ApiErrorMessage
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -33,15 +39,30 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Android 15 이상의 강제 edge-to-edge에서도 하단 탭을 시스템 영역 밖에 배치한다.
+        WindowCompat.setDecorFitsSystemWindows(window, true)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         sessionManager = SessionManager(this)
 
+        setupBottomNavigationInsets()
         setupNavigation()
         setupSidebar()
         setupThemeButtons()
         setupSidebarActions()
         loadUserInfo()
+    }
+
+    /** 제스처/버튼 내비게이션 영역에 가려지지 않도록 하단 바 높이를 보정합니다. */
+    private fun setupBottomNavigationInsets() {
+        val baseHeight = (80 * resources.displayMetrics.density).toInt()
+        ViewCompat.setOnApplyWindowInsetsListener(binding.bottomNavigation) { view, insets ->
+            val bottomInset = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+            view.updateLayoutParams { height = baseHeight + bottomInset }
+            view.updatePadding(bottom = bottomInset)
+            insets
+        }
+        ViewCompat.requestApplyInsets(binding.bottomNavigation)
     }
 
     // ─────────────────────────────────────────
@@ -184,12 +205,20 @@ class MainActivity : AppCompatActivity() {
                                     startActivity(Intent(this@MainActivity, LoginActivity::class.java))
                                     finish()
                                 } else {
-                                    Toast.makeText(this@MainActivity, "회원탈퇴에 실패했습니다", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(
+                                        this@MainActivity,
+                                        ApiErrorMessage.fromResponse(response),
+                                        Toast.LENGTH_LONG
+                                    ).show()
                                 }
                             }
 
                             override fun onFailure(call: Call<Void>, t: Throwable) {
-                                Toast.makeText(this@MainActivity, "서버 연결에 실패했습니다", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    ApiErrorMessage.fromThrowable(t, "회원탈퇴"),
+                                    Toast.LENGTH_LONG
+                                ).show()
                             }
                         })
                 }

@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
@@ -8,88 +7,152 @@
     android:background="@color/bg_primary"
     tools:context=".ui.contact.ContactFragment">
 
-    <!-- 서브타이틀 -->
     <TextView
         android:id="@+id/tvContactSubtitle"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="@string/contact_subtitle"
+        android:layout_marginHorizontal="20dp"
+        android:layout_marginTop="8dp"
+        android:text="3단계 졸음 감지 시 등록된 연락처에 메시지를 보냅니다."
         android:textColor="@color/text_secondary"
         android:textSize="13sp"
-        android:paddingHorizontal="16dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="8dp"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- 구분선 -->
-    <View
-        android:id="@+id/dividerContact"
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardContactGuide"
         android:layout_width="0dp"
-        android:layout_height="0.5dp"
-        android:background="@color/divider"
-        app:layout_constraintTop_toBottomOf="@id/tvContactSubtitle"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="14dp"
+        app:cardBackgroundColor="@color/accent_tint"
+        app:cardCornerRadius="18dp"
+        app:cardElevation="0dp"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/tvContactSubtitle"
+        app:strokeColor="@color/accent_secondary"
+        app:strokeWidth="1dp">
 
-    <!-- 빈 상태 안내 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="14dp">
+            <FrameLayout
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:background="@drawable/bg_icon_blue">
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="자동 발송 조건"
+                    android:src="@android:drawable/ic_dialog_email"
+                    android:tint="@color/accent_primary" />
+            </FrameLayout>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="자동 발송 조건"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="졸음 3단계가 감지되면 자동으로 SMS를 발송합니다."
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <TextView
+        android:id="@+id/tvContactListLabel"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="20dp"
+        android:layout_marginTop="20dp"
+        android:fontFamily="sans-serif-medium"
+        android:text="연락 대상"
+        android:textColor="@color/text_primary"
+        android:textSize="16sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/cardContactGuide" />
+
     <TextView
         android:id="@+id/tvContactEmpty"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginHorizontal="24dp"
+        android:gravity="center"
+        android:lineSpacingMultiplier="1.4"
+        android:paddingVertical="36dp"
         android:text="@string/contact_empty"
         android:textColor="@color/text_hint"
         android:textSize="14sp"
-        android:gravity="center"
-        android:lineSpacingMultiplier="1.5"
         android:visibility="gone"
-        app:layout_constraintTop_toBottomOf="@id/dividerContact"
-        app:layout_constraintBottom_toTopOf="@id/fabAddContact"
+        app:layout_constraintBottom_toTopOf="@id/layoutContactActions"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/tvContactListLabel" />
 
-    <!-- 연락처 카드 리스트 -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvContacts"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:padding="16dp"
-        android:paddingBottom="88dp"
         android:clipToPadding="false"
-        app:layout_constraintTop_toBottomOf="@id/dividerContact"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="12dp"
+        app:layout_constraintBottom_toTopOf="@id/layoutContactActions"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvContactListLabel"
         tools:listitem="@layout/item_contact_card" />
 
-    <!-- 임시 SMS 발송 버튼 -->
-    <Button
-        android:id="@+id/btnSendContacts"
-        android:layout_width="wrap_content"
-        android:layout_height="52dp"
-        android:layout_marginStart="20dp"
-        android:layout_marginBottom="80dp"
-        android:text="발송"
-        android:textSize="15sp"
-        android:backgroundTint="@color/alert_red"
-        android:textColor="#FFFFFF"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
-
-    <!-- + FAB 버튼 -->
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fabAddContact"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:id="@+id/layoutContactActions"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginEnd="20dp"
-        android:layout_marginBottom="80dp"
-        android:contentDescription="@string/contact_add"
-        android:src="@android:drawable/ic_input_add"
-        app:backgroundTint="@color/accent_primary"
-        app:tint="@color/text_primary"
-        app:elevation="6dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="16dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
 
+        <Button
+            android:id="@+id/btnSendContacts"
+            style="@style/Widget.NSND.Button.Secondary"
+            android:layout_width="0dp"
+            android:layout_height="54dp"
+            android:layout_marginEnd="10dp"
+            android:layout_weight="1"
+            android:text="테스트 발송"
+            android:textSize="14sp" />
+
+        <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+            android:id="@+id/fabAddContact"
+            android:layout_width="wrap_content"
+            android:layout_height="54dp"
+            android:contentDescription="@string/contact_add"
+            android:text="연락처 추가"
+            android:textColor="@android:color/white"
+            app:backgroundTint="@color/accent_primary"
+            app:icon="@android:drawable/ic_input_add"
+            app:iconTint="@android:color/white" />
+    </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

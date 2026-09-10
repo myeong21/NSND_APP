@@ -1,107 +1,106 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="24dp"
-    android:background="@color/bg_card">
+    app:cardBackgroundColor="@color/bg_card"
+    app:cardCornerRadius="24dp"
+    app:cardElevation="8dp">
 
-    <!-- 다이얼로그 타이틀 -->
-    <TextView
-        android:id="@+id/tvDialogTitle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="연락처 추가"
-        android:textColor="@color/text_primary"
-        android:textSize="17sp"
-        android:fontFamily="sans-serif-medium"
-        android:layout_marginBottom="20dp" />
-
-    <!-- 이름 입력 -->
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/tilName"
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="@string/contact_name_hint"
-        android:layout_marginBottom="12dp"
-        app:boxStrokeColor="@color/border"
-        app:boxBackgroundColor="@color/bg_secondary"
-        app:hintTextColor="@color/text_hint">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/etName"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="@color/text_primary"
-            android:inputType="textPersonName" />
-
-    </com.google.android.material.textfield.TextInputLayout>
-
-    <!-- 연락처 입력 -->
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/tilPhone"
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="@string/contact_phone_hint"
-        android:layout_marginBottom="12dp"
-        app:boxStrokeColor="@color/border"
-        app:boxBackgroundColor="@color/bg_secondary"
-        app:hintTextColor="@color/text_hint">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/etPhone"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="@color/text_primary"
-            android:inputType="phone" />
-
-    </com.google.android.material.textfield.TextInputLayout>
-
-    <!-- 메시지 선택 스피너 -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/contact_message_hint"
-        android:textColor="@color/text_secondary"
-        android:textSize="12sp"
-        android:layout_marginBottom="6dp" />
-
-    <Spinner
-        android:id="@+id/spinnerMessage"
-        android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:background="@drawable/bg_spinner"
-        android:paddingHorizontal="12dp"
-        android:layout_marginBottom="24dp" />
-
-    <!-- 버튼 영역 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="end">
+        android:orientation="vertical"
+        android:padding="24dp">
 
-        <Button
-            android:id="@+id/btnDialogCancel"
-            style="@style/Widget.Material3.Button.TextButton"
+        <TextView
+            android:id="@+id/tvDialogTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/contact_cancel"
+            android:fontFamily="sans-serif-medium"
+            android:text="연락처 추가"
+            android:textColor="@color/text_primary"
+            android:textSize="20sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="긴급 상황에서 자동으로 발송할 대상을 설정합니다."
             android:textColor="@color/text_secondary"
-            android:layout_marginEnd="8dp" />
+            android:textSize="12sp" />
 
-        <Button
-            android:id="@+id/btnDialogSave"
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilName"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:hint="@string/contact_name_hint"
+            app:boxBackgroundColor="@color/bg_card"
+            app:boxStrokeColor="@color/accent_primary"
+            app:hintTextColor="@color/text_hint">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textPersonName"
+                android:textColor="@color/text_primary" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilPhone"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:hint="@string/contact_phone_hint"
+            app:boxBackgroundColor="@color/bg_card"
+            app:boxStrokeColor="@color/accent_primary"
+            app:hintTextColor="@color/text_hint">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etPhone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="phone"
+                android:textColor="@color/text_primary" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/contact_save"
-            android:backgroundTint="@color/accent_primary"
-            android:textColor="@color/text_primary" />
+            android:layout_marginTop="18dp"
+            android:layout_marginBottom="7dp"
+            android:text="@string/contact_message_hint"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
 
+        <Spinner
+            android:id="@+id/spinnerMessage"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:background="@drawable/bg_spinner"
+            android:paddingHorizontal="12dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:gravity="end"
+            android:orientation="horizontal">
+            <Button
+                android:id="@+id/btnDialogCancel"
+                style="@style/Widget.NSND.Button.Secondary"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:text="@string/contact_cancel" />
+            <Button
+                android:id="@+id/btnDialogSave"
+                style="@style/Widget.NSND.Button.Primary"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:layout_marginStart="8dp"
+                android:text="@string/contact_save" />
+        </LinearLayout>
     </LinearLayout>
-
-</LinearLayout>
+</com.google.android.material.card.MaterialCardView>
