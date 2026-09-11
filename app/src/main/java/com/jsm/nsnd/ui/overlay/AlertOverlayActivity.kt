@@ -10,10 +10,18 @@ import com.jsm.nsnd.R
 import com.jsm.nsnd.databinding.ActivityAlertOverlayBinding
 import android.os.Handler
 import android.os.Looper
+import android.media.MediaPlayer
+import android.media.RingtoneManager
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 
 class AlertOverlayActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityAlertOverlayBinding
+    private var mediaPlayer: MediaPlayer? = null
+    private val handler = Handler(Looper.getMainLooper())
 
     companion object {
         const val EXTRA_STAGE = "extra_stage"
@@ -30,6 +38,7 @@ class AlertOverlayActivity : AppCompatActivity() {
         setupStageDisplay(stage)
         setupStageIndicator(stage)
         startAnimations(stage)
+        startPhysicalAlert(stage)
         setupDismissButton()
     }
 
@@ -64,11 +73,11 @@ class AlertOverlayActivity : AppCompatActivity() {
             }
             2 -> {
                 binding.tvAlertStage.text = getString(R.string.alert_stage_2)
-                binding.tvAlertDescription.text = "경보음과 LED 경고가 작동 중입니다\n즉시 안전한 곳에 정차하세요"
+                binding.tvAlertDescription.text = "강한 경보음과 진동이 작동 중입니다\n즉시 안전한 곳에 정차하세요"
             }
             3 -> {
                 binding.tvAlertStage.text = getString(R.string.alert_stage_3)
-                binding.tvAlertDescription.text = "긴급 연락처로 SMS를 발송했습니다\n즉시 차를 세우세요"
+                binding.tvAlertDescription.text = "긴급 연락처로 SMS 발송을 시도했습니다\n즉시 차를 세우세요"
             }
         }
     }
@@ -137,21 +146,65 @@ class AlertOverlayActivity : AppCompatActivity() {
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
 
+    private fun startPhysicalAlert(stage: Int) {
+        val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        mediaPlayer = MediaPlayer.create(this, alarmUri)?.apply {
+            isLooping = true
+            start()
+        }
+
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            getSystemService(VibratorManager::class.java).defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(VIBRATOR_SERVICE) as Vibrator
+        }
+        val pattern = when (stage) {
+            1 -> longArrayOf(0, 250, 500)
+            2 -> longArrayOf(0, 400, 250, 600, 350)
+            else -> longArrayOf(0, 700, 200, 900, 200, 1100)
+        }
+        vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0))
+    }
+
+    private fun stopPhysicalAlert() {
+        mediaPlayer?.runCatching {
+            if (isPlaying) stop()
+            release()
+        }
+        mediaPlayer = null
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            getSystemService(VibratorManager::class.java).defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(VIBRATOR_SERVICE) as Vibrator
+        }
+        vibrator.cancel()
+    }
+
     // ─────────────────────────────────────────
     // 확인 버튼
     // ─────────────────────────────────────────
     private fun setupDismissButton() {
         binding.btnDismiss.visibility = View.INVISIBLE
 
-        Handler(Looper.getMainLooper()).postDelayed({
+        handler.postDelayed({
             binding.btnDismiss.visibility = View.VISIBLE
         }, 3000)
 
         binding.btnDismiss.setOnClickListener {
             binding.ivRotatingRing.clearAnimation()
             binding.viewFlash.clearAnimation()
+            stopPhysicalAlert()
             finish()
         }
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
+        stopPhysicalAlert()
+        super.onDestroy()
     }
 
     override fun onBackPressed() {

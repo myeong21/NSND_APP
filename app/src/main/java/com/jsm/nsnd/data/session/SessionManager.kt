@@ -20,7 +20,20 @@ class SessionManager(context: Context) {
     }
 
     fun clear() {
-        prefs.edit().remove("access_token").apply()
+        prefs.edit()
+            .remove("access_token")
+            .remove("active_session_id")
+            .apply()
+    }
+
+    fun saveActiveSessionId(sessionId: Int) {
+        prefs.edit().putInt("active_session_id", sessionId).apply()
+    }
+
+    fun getActiveSessionId(): Int = prefs.getInt("active_session_id", -1)
+
+    fun clearActiveSessionId() {
+        prefs.edit().remove("active_session_id").apply()
     }
 
     fun isLoggedIn(): Boolean {

@@ -20,6 +20,8 @@ import com.jsm.nsnd.R
 import com.jsm.nsnd.databinding.ActivityMainBinding
 import android.content.Intent
 import android.widget.Toast
+import android.os.Handler
+import android.os.Looper
 import com.jsm.nsnd.data.api.ApiClient
 import com.jsm.nsnd.data.api.UserResponse
 import com.jsm.nsnd.data.session.ServerConfig
@@ -36,6 +38,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var navController: NavController
 
     private lateinit var sessionManager: SessionManager
+    private val authHandler = Handler(Looper.getMainLooper())
+    private var authCheckInFlight = false
+    private var loggingOut = false
+    private val authCheckRunnable = object : Runnable {
+        override fun run() {
+            validateActiveLogin()
+            authHandler.postDelayed(this, 15_000L)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,13 +87,62 @@ class MainActivity : AppCompatActivity() {
                     if (response.isSuccessful && user != null) {
                         binding.tvSidebarName.text = user.name
                         binding.tvSidebarId.text = user.username
+                    } else if (response.code() == 401) {
+                        forceLogout("다른 기기에서 로그인했거나 로그인 시간이 만료되었습니다.")
+                    } else {
+                        Toast.makeText(this@MainActivity, ApiErrorMessage.fromResponse(response), Toast.LENGTH_LONG).show()
                     }
                 }
 
                 override fun onFailure(call: Call<UserResponse>, t: Throwable) {
-                    // 네트워크 실패 시 기존 텍스트 유지
+                    Toast.makeText(
+                        this@MainActivity,
+                        ApiErrorMessage.fromThrowable(t, "사용자 정보 확인"),
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             })
+    }
+
+    override fun onStart() {
+        super.onStart()
+        authHandler.removeCallbacks(authCheckRunnable)
+        authHandler.post(authCheckRunnable)
+    }
+
+    override fun onStop() {
+        authHandler.removeCallbacks(authCheckRunnable)
+        super.onStop()
+    }
+
+    private fun validateActiveLogin() {
+        if (authCheckInFlight || loggingOut || !sessionManager.isLoggedIn()) return
+        authCheckInFlight = true
+        ApiClient.authApi(this).me(sessionManager.getAuthHeader())
+            .enqueue(object : Callback<UserResponse> {
+                override fun onResponse(call: Call<UserResponse>, response: Response<UserResponse>) {
+                    authCheckInFlight = false
+                    if (response.code() == 401) {
+                        forceLogout("다른 기기에서 로그인하여 이 기기의 로그인이 종료되었습니다.")
+                    }
+                }
+
+                override fun onFailure(call: Call<UserResponse>, t: Throwable) {
+                    authCheckInFlight = false
+                    // 일시적인 네트워크 단절은 자동 로그아웃 사유가 아닙니다.
+                }
+            })
+    }
+
+    private fun forceLogout(message: String) {
+        if (loggingOut) return
+        loggingOut = true
+        sessionManager.clear()
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        startActivity(Intent(this, LoginActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        })
+        finish()
     }
 
     // ─────────────────────────────────────────
@@ -180,9 +240,28 @@ class MainActivity : AppCompatActivity() {
                 .setTitle(getString(R.string.sidebar_logout))
                 .setMessage(getString(R.string.sidebar_logout_confirm))
                 .setPositiveButton(getString(R.string.confirm)) { _, _ ->
-                    sessionManager.clear()
-                    startActivity(Intent(this, LoginActivity::class.java))
-                    finish()
+                    ApiClient.authApi(this).logout(sessionManager.getAuthHeader())
+                        .enqueue(object : Callback<Void> {
+                            override fun onResponse(call: Call<Void>, response: Response<Void>) {
+                                if (response.isSuccessful || response.code() == 401) {
+                                    forceLogout("로그아웃되었습니다.")
+                                } else {
+                                    Toast.makeText(
+                                        this@MainActivity,
+                                        ApiErrorMessage.fromResponse(response),
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+
+                            override fun onFailure(call: Call<Void>, t: Throwable) {
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    ApiErrorMessage.fromThrowable(t, "로그아웃"),
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        })
                 }
                 .setNegativeButton(getString(R.string.cancel), null)
                 .show()

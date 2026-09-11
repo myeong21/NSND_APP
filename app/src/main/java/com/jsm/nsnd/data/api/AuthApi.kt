@@ -15,4 +15,7 @@ interface AuthApi {
 
     @DELETE("auth/me")
     fun deleteMe(@Header("Authorization") token: String): Call<Void>
+
+    @DELETE("auth/logout")
+    fun logout(@Header("Authorization") token: String): Call<Void>
 }

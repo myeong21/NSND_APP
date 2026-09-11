@@ -8,9 +8,12 @@ import com.jsm.nsnd.network.model.ReportHistoryResponse
 import com.jsm.nsnd.network.model.ReportSummaryResponse
 import com.jsm.nsnd.network.model.SessionEndRequest
 import com.jsm.nsnd.network.model.SessionStartResponse
+import com.jsm.nsnd.network.model.CurrentSessionResponse
+import com.jsm.nsnd.network.model.DetectionStatusResponse
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.Path
 import retrofit2.http.POST
 import retrofit2.http.Query
 
@@ -39,6 +42,23 @@ interface ApiService {
     suspend fun startSession(
         @Header("Authorization") token: String
     ): SessionStartResponse
+
+    @GET("sessions/current")
+    suspend fun getCurrentSession(
+        @Header("Authorization") token: String
+    ): CurrentSessionResponse
+
+    @GET("detection/status/{sessionId}")
+    suspend fun getDetectionStatus(
+        @Header("Authorization") token: String,
+        @Path("sessionId") sessionId: Int
+    ): DetectionStatusResponse
+
+    @GET("report/detail/{sessionId}")
+    suspend fun getReportDetail(
+        @Header("Authorization") token: String,
+        @Path("sessionId") sessionId: Int
+    ): ReportSummaryResponse
 
     @POST("sessions/end")
     suspend fun endSession(

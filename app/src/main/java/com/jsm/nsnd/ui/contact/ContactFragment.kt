@@ -42,6 +42,7 @@ class ContactFragment : Fragment() {
     private val sharedViewModel: SharedContactViewModel by activityViewModels()
     private val sessionManager by lazy { SessionManager(requireContext()) }
     private var isServerBusy = false
+    private var lastSyncAt = 0L
 
     private fun authHeader(): String = sessionManager.getAuthHeader()
 
@@ -117,6 +118,7 @@ class ContactFragment : Fragment() {
     // 서버 연락처 동기화
     // ─────────────────────────────────────────
     private fun syncContactsFromServer() {
+        if (isServerBusy) return
         val cachedContacts = contactList.toList()
         setServerBusy(true)
         ApiClient.contactApi(requireContext()).getContacts(authHeader())
@@ -144,6 +146,7 @@ class ContactFragment : Fragment() {
                     } else {
                         ContactLocalStore.markServerMigrationComplete(requireContext())
                         replaceContacts(serverContacts.map { it.toItem() })
+                        lastSyncAt = System.currentTimeMillis()
                         setServerBusy(false)
                     }
                 }
@@ -161,27 +164,33 @@ class ContactFragment : Fragment() {
         serverContacts: List<ContactDto>,
         cachedContacts: List<ContactItem>
     ) {
-        val existingKeys = serverContacts.map { it.contentKey() }.toSet()
-        val pending = cachedContacts.filter { it.contentKey() !in existingKeys }
+        val normalizedCached = cachedContacts.map { item ->
+            item.copy(phone = item.phone.filter(Char::isDigit))
+        }
+        val invalidContacts = normalizedCached
+            .filter { it.name.isBlank() || it.phone.length !in 8..15 || it.message.isBlank() }
+            .map { it.copy(id = 0) }
+            .toMutableList()
+        val existingPhones = serverContacts.map { it.phone.filter(Char::isDigit) }.toSet()
+        val pending = normalizedCached
+            .filter { it.name.isNotBlank() && it.phone.length in 8..15 && it.message.isNotBlank() }
+            .distinctBy { it.phone }
+            .filter { it.phone !in existingPhones }
         if (pending.isEmpty()) {
-            ContactLocalStore.markServerMigrationComplete(requireContext())
-            replaceContacts(serverContacts.map { it.toItem() })
-            setServerBusy(false)
+            finishCachedMigration(serverContacts, invalidContacts)
             return
         }
-        uploadCachedContact(pending, 0, serverContacts.toMutableList())
+        uploadCachedContact(pending, 0, serverContacts.toMutableList(), invalidContacts)
     }
 
     private fun uploadCachedContact(
         pending: List<ContactItem>,
         index: Int,
-        serverContacts: MutableList<ContactDto>
+        serverContacts: MutableList<ContactDto>,
+        unresolvedContacts: MutableList<ContactItem>
     ) {
         if (index >= pending.size) {
-            ContactLocalStore.markServerMigrationComplete(requireContext())
-            replaceContacts(serverContacts.map { it.toItem() })
-            setServerBusy(false)
-            Toast.makeText(requireContext(), "기존 연락처를 서버에 동기화했습니다", Toast.LENGTH_SHORT).show()
+            finishCachedMigration(serverContacts, unresolvedContacts)
             return
         }
 
@@ -197,12 +206,27 @@ class ContactFragment : Fragment() {
                     }
                     val created = response.body()
                     if (!response.isSuccessful || created == null) {
-                        setServerBusy(false)
-                        showServerError("기존 연락처 이전에 실패했습니다. ${ApiErrorMessage.fromResponse(response)}")
+                        if (response.code() == 409 || response.code() == 422) {
+                            unresolvedContacts.add(item.copy(id = 0))
+                            uploadCachedContact(
+                                pending,
+                                index + 1,
+                                serverContacts,
+                                unresolvedContacts
+                            )
+                        } else {
+                            setServerBusy(false)
+                            showServerError("기존 연락처 이전에 실패했습니다. ${ApiErrorMessage.fromResponse(response)}")
+                        }
                         return
                     }
                     serverContacts.add(created)
-                    uploadCachedContact(pending, index + 1, serverContacts)
+                    uploadCachedContact(
+                        pending,
+                        index + 1,
+                        serverContacts,
+                        unresolvedContacts
+                    )
                 }
 
                 override fun onFailure(call: Call<ContactDto>, error: Throwable) {
@@ -211,6 +235,28 @@ class ContactFragment : Fragment() {
                     showServerError(ApiErrorMessage.fromThrowable(error, "기존 연락처 이전"))
                 }
             })
+    }
+
+    private fun finishCachedMigration(
+        serverContacts: List<ContactDto>,
+        unresolvedContacts: List<ContactItem>
+    ) {
+        if (unresolvedContacts.isEmpty()) {
+            ContactLocalStore.markServerMigrationComplete(requireContext())
+        }
+        val merged = serverContacts.map { it.toItem() } + unresolvedContacts
+        replaceContacts(merged)
+        lastSyncAt = System.currentTimeMillis()
+        setServerBusy(false)
+        Toast.makeText(
+            requireContext(),
+            if (unresolvedContacts.isEmpty()) {
+                "기존 연락처를 서버에 동기화했습니다"
+            } else {
+                "전화번호가 올바르지 않은 연락처 ${unresolvedContacts.size}개는 이전하지 않았습니다. 수정하거나 삭제해주세요."
+            },
+            Toast.LENGTH_LONG
+        ).show()
     }
 
     // ─────────────────────────────────────────
@@ -280,13 +326,22 @@ class ContactFragment : Fragment() {
                 dialogBinding.tilPhone.error = "연락처를 입력해주세요"
                 return@setOnClickListener
             }
+            val normalizedPhone = phone.filter(Char::isDigit)
+            if (normalizedPhone.length !in 8..15) {
+                dialogBinding.tilPhone.error = "전화번호를 8~15자리 숫자로 입력해주세요"
+                return@setOnClickListener
+            }
+            if (contactList.any { it.id != existingItem?.id && it.phone.filter(Char::isDigit) == normalizedPhone }) {
+                dialogBinding.tilPhone.error = "이미 등록된 전화번호입니다"
+                return@setOnClickListener
+            }
 
             submitContact(
                 dialog = dialog,
                 dialogBinding = dialogBinding,
                 existingItem = existingItem,
                 fallbackPosition = position,
-                request = ContactRequest(name, phone, message)
+                request = ContactRequest(name, normalizedPhone, message)
             )
         }
 
@@ -302,7 +357,7 @@ class ContactFragment : Fragment() {
     ) {
         dialogBinding.btnDialogSave.isEnabled = false
         dialogBinding.btnDialogSave.text = "저장 중…"
-        val call = if (existingItem == null) {
+        val call = if (existingItem == null || existingItem.id <= 0) {
             ApiClient.contactApi(requireContext()).createContact(authHeader(), request)
         } else {
             ApiClient.contactApi(requireContext()).updateContact(authHeader(), existingItem.id, request)
@@ -360,6 +415,14 @@ class ContactFragment : Fragment() {
     // 연락처 삭제
     // ─────────────────────────────────────────
     private fun deleteContact(position: Int) {
+        val item = contactList.getOrNull(position) ?: return
+        if (item.id <= 0) {
+            contactList.removeAt(position)
+            replaceContacts(contactList.toList())
+            Toast.makeText(requireContext(), "이전하지 못한 연락처를 삭제했습니다", Toast.LENGTH_SHORT).show()
+            syncContactsFromServer()
+            return
+        }
         if (contactList.size <= 1) {
             Toast.makeText(
                 requireContext(),
@@ -368,7 +431,6 @@ class ContactFragment : Fragment() {
             ).show()
             return
         }
-        val item = contactList.getOrNull(position) ?: return
         setServerBusy(true)
         ApiClient.contactApi(requireContext()).deleteContact(authHeader(), item.id)
             .enqueue(object : Callback<Void> {
@@ -459,6 +521,7 @@ class ContactFragment : Fragment() {
     }
 
     private fun handleSessionExpired() {
+        setServerBusy(false)
         sessionManager.clear()
         val intent = Intent(requireContext(), LoginActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -468,8 +531,12 @@ class ContactFragment : Fragment() {
     }
 
     private fun ContactDto.toItem() = ContactItem(id, name, phone, message)
-    private fun ContactDto.contentKey() = Triple(name.trim(), phone.trim(), message.trim())
-    private fun ContactItem.contentKey() = Triple(name.trim(), phone.trim(), message.trim())
+    override fun onResume() {
+        super.onResume()
+        if (_binding != null && System.currentTimeMillis() - lastSyncAt > 5_000L) {
+            syncContactsFromServer()
+        }
+    }
 
     override fun onDestroyView() {
         super.onDestroyView()
