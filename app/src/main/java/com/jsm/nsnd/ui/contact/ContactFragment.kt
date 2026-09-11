@@ -1,6 +1,7 @@
 package com.jsm.nsnd.ui.contact
 
 import android.app.Dialog
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -21,8 +22,15 @@ import androidx.core.content.ContextCompat
 
 import androidx.fragment.app.activityViewModels
 import com.jsm.nsnd.ui.SharedContactViewModel
-import android.content.Context
+import com.jsm.nsnd.data.api.ApiClient
+import com.jsm.nsnd.data.api.ContactDto
+import com.jsm.nsnd.data.api.ContactRequest
 import com.jsm.nsnd.data.session.SessionManager
+import com.jsm.nsnd.ui.auth.LoginActivity
+import com.jsm.nsnd.ui.common.ApiErrorMessage
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
 class ContactFragment : Fragment() {
 
@@ -32,45 +40,10 @@ class ContactFragment : Fragment() {
     private val contactList = mutableListOf<ContactItem>()
     private lateinit var adapter: ContactAdapter
     private val sharedViewModel: SharedContactViewModel by activityViewModels()
+    private val sessionManager by lazy { SessionManager(requireContext()) }
+    private var isServerBusy = false
 
-    private fun contactsPreferenceKey(): String =
-        "contact_list_${SessionManager(requireContext()).getAccountStorageKey()}"
-
-    // SharedPreferences 저장/불러오기
-    private fun saveContacts() {
-        val prefs = requireContext().getSharedPreferences("nsnd_prefs", Context.MODE_PRIVATE)
-        val json = contactList.joinToString(separator = "||") {
-            "${it.id}::${it.name}::${it.phone}::${it.message}"
-        }
-        prefs.edit().putString(contactsPreferenceKey(), json).apply()
-    }
-
-    private fun loadContacts() {
-        val prefs = requireContext().getSharedPreferences("nsnd_prefs", Context.MODE_PRIVATE)
-        val accountKey = contactsPreferenceKey()
-        val storedContacts = prefs.getString(accountKey, null)
-        // 기존 설치본의 공용 목록은 처음 로그인한 계정으로 한 번만 이전합니다.
-        val json = storedContacts ?: prefs.getString("contact_list", "") ?: return
-        if (storedContacts == null && json.isNotBlank()) {
-            prefs.edit().putString(accountKey, json).remove("contact_list").apply()
-        }
-        if (json.isBlank()) return
-        contactList.clear()
-        json.split("||").forEach { entry ->
-            val parts = entry.split("::")
-            if (parts.size == 4) {
-                contactList.add(
-                    ContactItem(
-                        id = parts[0].toIntOrNull() ?: 0,
-                        name = parts[1],
-                        phone = parts[2],
-                        message = parts[3]
-                    )
-                )
-            }
-        }
-        adapter.notifyDataSetChanged()
-    }
+    private fun authHeader(): String = sessionManager.getAuthHeader()
 
     private val smsPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -94,10 +67,10 @@ class ContactFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         setupRecyclerView()
-        loadContacts()
+        replaceContacts(ContactLocalStore.load(requireContext()), saveCache = false)
         setupFab()
         setupSendButton()
-        updateEmptyState()
+        syncContactsFromServer()
     }
 
     // ─────────────────────────────────────────
@@ -106,8 +79,12 @@ class ContactFragment : Fragment() {
     private fun setupRecyclerView() {
         adapter = ContactAdapter(
             items = contactList,
-            onEdit = { item, position -> showContactDialog(item, position) },
-            onDelete = { position -> deleteContact(position) }
+            onEdit = { item, position ->
+                if (allowServerChange()) showContactDialog(item, position)
+            },
+            onDelete = { position ->
+                if (allowServerChange()) deleteContact(position)
+            }
         )
         binding.rvContacts.apply {
             layoutManager = LinearLayoutManager(requireContext())
@@ -120,8 +97,120 @@ class ContactFragment : Fragment() {
     // ─────────────────────────────────────────
     private fun setupFab() {
         binding.fabAddContact.setOnClickListener {
-            showContactDialog(null, -1)
+            if (allowServerChange()) showContactDialog(null, -1)
         }
+    }
+
+    private fun allowServerChange(): Boolean {
+        if (!isServerBusy) return true
+        Toast.makeText(requireContext(), "연락처를 서버와 동기화하고 있습니다", Toast.LENGTH_SHORT).show()
+        return false
+    }
+
+    private fun setServerBusy(busy: Boolean) {
+        isServerBusy = busy
+        _binding?.fabAddContact?.isEnabled = !busy
+        _binding?.fabAddContact?.alpha = if (busy) 0.45f else 1f
+    }
+
+    // ─────────────────────────────────────────
+    // 서버 연락처 동기화
+    // ─────────────────────────────────────────
+    private fun syncContactsFromServer() {
+        val cachedContacts = contactList.toList()
+        setServerBusy(true)
+        ApiClient.contactApi(requireContext()).getContacts(authHeader())
+            .enqueue(object : Callback<List<ContactDto>> {
+                override fun onResponse(
+                    call: Call<List<ContactDto>>,
+                    response: Response<List<ContactDto>>
+                ) {
+                    if (!isAdded || _binding == null) return
+                    if (response.code() == 401) {
+                        handleSessionExpired()
+                        return
+                    }
+                    val serverContacts = response.body()
+                    if (!response.isSuccessful || serverContacts == null) {
+                        setServerBusy(false)
+                        showServerError(ApiErrorMessage.fromResponse(response))
+                        return
+                    }
+
+                    if (!ContactLocalStore.isServerMigrationComplete(requireContext()) &&
+                        cachedContacts.isNotEmpty()
+                    ) {
+                        migrateCachedContacts(serverContacts, cachedContacts)
+                    } else {
+                        ContactLocalStore.markServerMigrationComplete(requireContext())
+                        replaceContacts(serverContacts.map { it.toItem() })
+                        setServerBusy(false)
+                    }
+                }
+
+                override fun onFailure(call: Call<List<ContactDto>>, error: Throwable) {
+                    if (!isAdded || _binding == null) return
+                    setServerBusy(false)
+                    showServerError(ApiErrorMessage.fromThrowable(error, "연락처 동기화"))
+                }
+            })
+    }
+
+    /** 기존 로컬 연락처 중 서버에 없는 항목만 최초 1회 업로드합니다. */
+    private fun migrateCachedContacts(
+        serverContacts: List<ContactDto>,
+        cachedContacts: List<ContactItem>
+    ) {
+        val existingKeys = serverContacts.map { it.contentKey() }.toSet()
+        val pending = cachedContacts.filter { it.contentKey() !in existingKeys }
+        if (pending.isEmpty()) {
+            ContactLocalStore.markServerMigrationComplete(requireContext())
+            replaceContacts(serverContacts.map { it.toItem() })
+            setServerBusy(false)
+            return
+        }
+        uploadCachedContact(pending, 0, serverContacts.toMutableList())
+    }
+
+    private fun uploadCachedContact(
+        pending: List<ContactItem>,
+        index: Int,
+        serverContacts: MutableList<ContactDto>
+    ) {
+        if (index >= pending.size) {
+            ContactLocalStore.markServerMigrationComplete(requireContext())
+            replaceContacts(serverContacts.map { it.toItem() })
+            setServerBusy(false)
+            Toast.makeText(requireContext(), "기존 연락처를 서버에 동기화했습니다", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val item = pending[index]
+        ApiClient.contactApi(requireContext())
+            .createContact(authHeader(), ContactRequest(item.name, item.phone, item.message))
+            .enqueue(object : Callback<ContactDto> {
+                override fun onResponse(call: Call<ContactDto>, response: Response<ContactDto>) {
+                    if (!isAdded || _binding == null) return
+                    if (response.code() == 401) {
+                        handleSessionExpired()
+                        return
+                    }
+                    val created = response.body()
+                    if (!response.isSuccessful || created == null) {
+                        setServerBusy(false)
+                        showServerError("기존 연락처 이전에 실패했습니다. ${ApiErrorMessage.fromResponse(response)}")
+                        return
+                    }
+                    serverContacts.add(created)
+                    uploadCachedContact(pending, index + 1, serverContacts)
+                }
+
+                override fun onFailure(call: Call<ContactDto>, error: Throwable) {
+                    if (!isAdded || _binding == null) return
+                    setServerBusy(false)
+                    showServerError(ApiErrorMessage.fromThrowable(error, "기존 연락처 이전"))
+                }
+            })
     }
 
     // ─────────────────────────────────────────
@@ -192,27 +281,79 @@ class ContactFragment : Fragment() {
                 return@setOnClickListener
             }
 
-            val newItem = ContactItem(
-                id = existingItem?.id ?: System.currentTimeMillis().toInt(),
-                name = name,
-                phone = phone,
-                message = message
+            submitContact(
+                dialog = dialog,
+                dialogBinding = dialogBinding,
+                existingItem = existingItem,
+                fallbackPosition = position,
+                request = ContactRequest(name, phone, message)
             )
-
-            if (isEditMode) {
-                contactList[position] = newItem
-                adapter.notifyItemChanged(position)
-            } else {
-                contactList.add(newItem)
-                adapter.notifyItemInserted(contactList.size - 1)
-            }
-
-            // TODO: 젯슨 나노 서버에 연락처 저장 요청으로 교체
-            updateEmptyState()
-            dialog.dismiss()
         }
 
         dialog.show()
+    }
+
+    private fun submitContact(
+        dialog: Dialog,
+        dialogBinding: DialogContactBinding,
+        existingItem: ContactItem?,
+        fallbackPosition: Int,
+        request: ContactRequest
+    ) {
+        dialogBinding.btnDialogSave.isEnabled = false
+        dialogBinding.btnDialogSave.text = "저장 중…"
+        val call = if (existingItem == null) {
+            ApiClient.contactApi(requireContext()).createContact(authHeader(), request)
+        } else {
+            ApiClient.contactApi(requireContext()).updateContact(authHeader(), existingItem.id, request)
+        }
+
+        call.enqueue(object : Callback<ContactDto> {
+            override fun onResponse(call: Call<ContactDto>, response: Response<ContactDto>) {
+                if (!isAdded || _binding == null) {
+                    dialog.dismiss()
+                    return
+                }
+                if (response.code() == 401) {
+                    dialog.dismiss()
+                    handleSessionExpired()
+                    return
+                }
+                val saved = response.body()
+                if (!response.isSuccessful || saved == null) {
+                    restoreDialogSaveButton(dialogBinding)
+                    showServerError(ApiErrorMessage.fromResponse(response))
+                    return
+                }
+
+                val savedItem = saved.toItem()
+                if (existingItem == null) {
+                    contactList.add(savedItem)
+                } else {
+                    val currentIndex = contactList.indexOfFirst { it.id == existingItem.id }
+                        .takeIf { it >= 0 } ?: fallbackPosition
+                    if (currentIndex in contactList.indices) contactList[currentIndex] = savedItem
+                }
+                replaceContacts(contactList.toList())
+                dialog.dismiss()
+                Toast.makeText(
+                    requireContext(),
+                    if (existingItem == null) "연락처를 서버에 저장했습니다" else "연락처를 수정했습니다",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+
+            override fun onFailure(call: Call<ContactDto>, error: Throwable) {
+                if (!isAdded || _binding == null) return
+                restoreDialogSaveButton(dialogBinding)
+                showServerError(ApiErrorMessage.fromThrowable(error, "연락처 저장"))
+            }
+        })
+    }
+
+    private fun restoreDialogSaveButton(dialogBinding: DialogContactBinding) {
+        dialogBinding.btnDialogSave.isEnabled = true
+        dialogBinding.btnDialogSave.text = "저장"
     }
 
     // ─────────────────────────────────────────
@@ -227,11 +368,33 @@ class ContactFragment : Fragment() {
             ).show()
             return
         }
-        // TODO: 젯슨 나노 서버에 연락처 삭제 요청으로 교체
-        contactList.removeAt(position)
-        adapter.notifyItemRemoved(position)
-        adapter.notifyItemRangeChanged(position, contactList.size)
-        updateEmptyState()
+        val item = contactList.getOrNull(position) ?: return
+        setServerBusy(true)
+        ApiClient.contactApi(requireContext()).deleteContact(authHeader(), item.id)
+            .enqueue(object : Callback<Void> {
+                override fun onResponse(call: Call<Void>, response: Response<Void>) {
+                    if (!isAdded || _binding == null) return
+                    if (response.code() == 401) {
+                        handleSessionExpired()
+                        return
+                    }
+                    if (!response.isSuccessful) {
+                        setServerBusy(false)
+                        showServerError(ApiErrorMessage.fromResponse(response))
+                        return
+                    }
+                    contactList.removeAll { it.id == item.id }
+                    replaceContacts(contactList.toList())
+                    setServerBusy(false)
+                    Toast.makeText(requireContext(), "연락처를 삭제했습니다", Toast.LENGTH_SHORT).show()
+                }
+
+                override fun onFailure(call: Call<Void>, error: Throwable) {
+                    if (!isAdded || _binding == null) return
+                    setServerBusy(false)
+                    showServerError(ApiErrorMessage.fromThrowable(error, "연락처 삭제"))
+                }
+            })
     }
 
     private fun requestSmsPermissionAndSend() {
@@ -270,9 +433,11 @@ class ContactFragment : Fragment() {
     }
 
     // ─────────────────────────────────────────
-    // 빈 상태 표시
+    // 목록 표시 및 계정별 오프라인 캐시 갱신
     // ─────────────────────────────────────────
-    private fun updateEmptyState() {
+    private fun replaceContacts(items: List<ContactItem>, saveCache: Boolean = true) {
+        contactList.clear()
+        contactList.addAll(items)
         if (contactList.isEmpty()) {
             binding.tvContactEmpty.visibility = View.VISIBLE
             binding.rvContacts.visibility = View.GONE
@@ -282,8 +447,29 @@ class ContactFragment : Fragment() {
         }
         adapter.notifyDataSetChanged()
         sharedViewModel.contacts.value = contactList.toList()
-        saveContacts()
+        if (saveCache) ContactLocalStore.save(requireContext(), contactList)
     }
+
+    private fun showServerError(message: String) {
+        Toast.makeText(
+            requireContext(),
+            "$message\n마지막으로 동기화한 연락처는 기기에 유지됩니다.",
+            Toast.LENGTH_LONG
+        ).show()
+    }
+
+    private fun handleSessionExpired() {
+        sessionManager.clear()
+        val intent = Intent(requireContext(), LoginActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        startActivity(intent)
+        requireActivity().finish()
+    }
+
+    private fun ContactDto.toItem() = ContactItem(id, name, phone, message)
+    private fun ContactDto.contentKey() = Triple(name.trim(), phone.trim(), message.trim())
+    private fun ContactItem.contentKey() = Triple(name.trim(), phone.trim(), message.trim())
 
     override fun onDestroyView() {
         super.onDestroyView()

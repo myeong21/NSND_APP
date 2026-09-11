@@ -18,6 +18,8 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.jsm.nsnd.R
+import com.jsm.nsnd.data.api.ApiClient
+import com.jsm.nsnd.data.api.ContactDto
 import com.jsm.nsnd.data.session.SessionManager
 import com.jsm.nsnd.data.session.ServerConfig
 import com.jsm.nsnd.databinding.FragmentHomeBinding
@@ -25,6 +27,7 @@ import com.jsm.nsnd.network.RetrofitClient
 import com.jsm.nsnd.network.model.DetectionRequest
 import com.jsm.nsnd.network.model.SessionEndRequest
 import com.jsm.nsnd.ui.auth.LoginActivity
+import com.jsm.nsnd.ui.contact.ContactLocalStore
 import com.jsm.nsnd.ui.contact.ContactItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
@@ -43,6 +46,8 @@ import java.util.Locale
 import androidx.fragment.app.activityViewModels
 import com.jsm.nsnd.ui.SharedContactViewModel
 import com.jsm.nsnd.ui.common.ApiErrorMessage
+import retrofit2.Call
+import retrofit2.Callback
 
 class HomeFragment : Fragment() {
 
@@ -128,11 +133,74 @@ class HomeFragment : Fragment() {
             connectWebSocket(currentSessionId)
         }
 
-        // 연락처 변경 관찰
+        // 서버 장애 중에도 마지막 계정별 연락처로 긴급 SMS를 보낼 수 있도록 캐시를 먼저 사용합니다.
+        val cachedContacts = ContactLocalStore.load(requireContext())
+        contactList.clear()
+        contactList.addAll(cachedContacts)
+        sharedViewModel.contacts.value = cachedContacts
+
+        // 연락처 화면에서 서버 동기화가 완료되면 즉시 반영합니다.
         sharedViewModel.contacts.observe(viewLifecycleOwner) { contacts ->
             contactList.clear()
             contactList.addAll(contacts)
         }
+        refreshEmergencyContacts(cachedContacts)
+    }
+
+    private fun refreshEmergencyContacts(cachedContacts: List<ContactItem>) {
+        ApiClient.contactApi(requireContext()).getContacts(sessionManager.getAuthHeader())
+            .enqueue(object : Callback<List<ContactDto>> {
+                override fun onResponse(
+                    call: Call<List<ContactDto>>,
+                    response: retrofit2.Response<List<ContactDto>>
+                ) {
+                    if (!isAdded || _binding == null) return
+                    if (response.code() == 401) {
+                        handleSessionExpired()
+                        return
+                    }
+                    if (!response.isSuccessful) {
+                        Toast.makeText(
+                            requireContext(),
+                            ApiErrorMessage.fromResponse(response),
+                            Toast.LENGTH_LONG
+                        ).show()
+                        return
+                    }
+                    val serverContacts = response.body() ?: return
+
+                    val serverItems = serverContacts.map {
+                        ContactItem(it.id, it.name, it.phone, it.message)
+                    }
+                    val migrationPending =
+                        !ContactLocalStore.isServerMigrationComplete(requireContext()) &&
+                            cachedContacts.isNotEmpty()
+
+                    // 최초 이전 전에는 서버와 로컬을 합쳐 SMS 누락을 막고, 실제 업로드는 연락처 화면에서 합니다.
+                    val itemsForSms = if (migrationPending) {
+                        val serverKeys = serverItems.map { Triple(it.name, it.phone, it.message) }.toSet()
+                        serverItems + cachedContacts.filter {
+                            Triple(it.name, it.phone, it.message) !in serverKeys
+                        }
+                    } else {
+                        ContactLocalStore.markServerMigrationComplete(requireContext())
+                        serverItems
+                    }
+
+                    ContactLocalStore.save(requireContext(), itemsForSms)
+                    sharedViewModel.contacts.value = itemsForSms
+                }
+
+                override fun onFailure(call: Call<List<ContactDto>>, error: Throwable) {
+                    if (!isAdded || _binding == null) return
+                    val suffix = if (cachedContacts.isEmpty()) "" else " 저장된 연락처를 사용합니다."
+                    Toast.makeText(
+                        requireContext(),
+                        ApiErrorMessage.fromThrowable(error, "긴급 연락처 동기화") + suffix,
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            })
     }
 
     // ─────────────────────────────────────────
