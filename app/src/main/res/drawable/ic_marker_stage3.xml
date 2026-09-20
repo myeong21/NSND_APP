@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="32dp"
+    android:height="32dp"
+    android:viewportWidth="32"
+    android:viewportHeight="32">
+    <!-- 외곽 원 그림자/펄스 -->
+    <path
+        android:fillColor="#4DF44336"
+        android:pathData="M16,16m-15,0a15,15 0,1,1 30,0a15,15 0,1,1 -30,0" />
+    <!-- 내부 마커 원 -->
+    <path
+        android:fillColor="#F44336"
+        android:pathData="M16,16m-10,0a10,10 0,1,1 20,0a10,10 0,1,1 -20,0" />
+    <!-- 경고 느낌의 중심 점 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M16,16m-3.5,0a3.5,3.5 0,1,1 7,0a3.5,3.5 0,1,1 -7,0" />
+</vector>

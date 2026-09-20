@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- 1. 전체 화면 카카오맵 MapView -->
+    <com.kakao.vectormap.MapView
+        android:id="@+id/mapView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- 1-2. 카카오맵 웹뷰 (SDK 키 해시 인증 실패 시 자동 폴백) -->
+    <WebView
+        android:id="@+id/mapWebView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- 2. 상단 오버레이 컨트롤 카드 (날짜 선택 + 요약 통계) -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardTopControl"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="12dp"
+        app:cardBackgroundColor="@color/bg_card_strong"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="6dp"
+        app:strokeColor="@color/border"
+        app:strokeWidth="1dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <!-- 날짜 선택 칩 / 바 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:id="@+id/btnDateSelector"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_card_pill"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:paddingHorizontal="12dp">
+
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:contentDescription="달력"
+                        android:src="@drawable/ic_calendar"
+                        android:tint="@color/accent_primary" />
+
+                    <TextView
+                        android:id="@+id/tvMapDate"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:fontFamily="sans-serif-medium"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp"
+                        tools:text="2026년 9월 20일 (오늘)" />
+                </LinearLayout>
+
+                <ImageButton
+                    android:id="@+id/btnRefreshMap"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_icon_btn"
+                    android:contentDescription="새로고침"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_refresh"
+                    android:tint="@color/text_secondary" />
+            </LinearLayout>
+
+            <!-- 이벤트 통계 요약 (배지 3종) -->
+            <LinearLayout
+                android:id="@+id/layoutStatsRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvTotalCount"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="총 0건 감지: "
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <!-- 1단계 배지 -->
+                <TextView
+                    android:id="@+id/badgeStage1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/bg_badge_stage1"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="3dp"
+                    android:text="🟡 0건"
+                    android:textColor="@color/stage_1"
+                    android:textSize="11sp" />
+
+                <!-- 2단계 배지 -->
+                <TextView
+                    android:id="@+id/badgeStage2"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/bg_badge_stage2"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="3dp"
+                    android:text="🟠 0건"
+                    android:textColor="@color/stage_2"
+                    android:textSize="11sp" />
+
+                <!-- 3단계 배지 -->
+                <TextView
+                    android:id="@+id/badgeStage3"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/bg_badge_stage3"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="3dp"
+                    android:text="🔴 0건"
+                    android:textColor="@color/stage_3"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- 빈 상태 알림 배너 (선택 날짜에 기록 없을 때) -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardEmptyNotice"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:visibility="gone"
+        app:cardBackgroundColor="@color/bg_card_strong"
+        app:cardCornerRadius="20dp"
+        app:cardElevation="4dp"
+        app:strokeColor="@color/border"
+        app:strokeWidth="1dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/cardTopControl"
+        tools:visibility="visible">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="8dp"
+            android:text="선택한 날짜에 기록된 위치 데이터가 없습니다."
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- 3. 우측 하단 플로팅 액션 버튼 (내 위치, 모든 마커 보기) -->
+    <LinearLayout
+        android:id="@+id/layoutFabControls"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        app:layout_constraintBottom_toTopOf="@id/cardMarkerDetail"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <!-- 마커 전체보기 FAB -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/btnRecenter"
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:clickable="true"
+            android:focusable="true"
+            app:cardBackgroundColor="@color/bg_card_strong"
+            app:cardCornerRadius="23dp"
+            app:cardElevation="6dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_gravity="center"
+                android:contentDescription="모든 마커 한눈에 보기"
+                android:src="@drawable/ic_recenter"
+                android:tint="@color/text_primary" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 내 위치로 이동 FAB -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/btnMyLocation"
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:layout_marginTop="10dp"
+            android:clickable="true"
+            android:focusable="true"
+            app:cardBackgroundColor="@color/bg_card_strong"
+            app:cardCornerRadius="23dp"
+            app:cardElevation="6dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_gravity="center"
+                android:contentDescription="내 위치로 이동"
+                android:src="@drawable/ic_my_location"
+                android:tint="@color/accent_primary" />
+        </com.google.android.material.card.MaterialCardView>
+    </LinearLayout>
+
+    <!-- 4. 하단 슬라이드업 마커 상세 정보 미니 카드 -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardMarkerDetail"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="16dp"
+        android:visibility="gone"
+        app:cardBackgroundColor="@color/bg_card_strong"
+        app:cardCornerRadius="20dp"
+        app:cardElevation="10dp"
+        app:strokeColor="@color/border"
+        app:strokeWidth="1dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        tools:visibility="visible">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- 헤더: 단계 배지 + 시각 + 닫기 버튼 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvDetailStageBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_badge_stage2"
+                    android:fontFamily="sans-serif-medium"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="4dp"
+                    android:textColor="@color/stage_2"
+                    android:textSize="12sp"
+                    tools:text="2단계 졸음 감지" />
+
+                <TextView
+                    android:id="@+id/tvDetailTime"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/text_primary"
+                    android:textSize="15sp"
+                    tools:text="14:23:45 감지" />
+
+                <ImageButton
+                    android:id="@+id/btnCloseDetail"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="닫기"
+                    android:padding="6dp"
+                    android:src="@drawable/ic_close"
+                    android:tint="@color/text_secondary" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginVertical="10dp"
+                android:background="@color/divider" />
+
+            <!-- 상세 내용: 좌표 및 상태 설명 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvDetailCoords"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    tools:text="위도 37.4021 · 경도 127.1082" />
+
+                <TextView
+                    android:id="@+id/tvDetailStatusDesc"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/status_warn"
+                    android:textSize="12sp"
+                    tools:text="주의 필요" />
+            </LinearLayout>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- 5. 로딩 프로그레스바 -->
+    <ProgressBar
+        android:id="@+id/progressMapLoading"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:visibility="visible" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -77,4 +77,7 @@
     <color name="text_secondary">@color/light_text_secondary</color>
     <color name="text_hint">@color/light_text_hint</color>
     <color name="splash_blue">#0754D6</color>
+
+    <!-- 지도/오버레이 빈 상태 배경용 -->
+    <color name="bg_surface">#F8FAFC</color>
 </resources>

@@ -67,6 +67,20 @@ class LoginActivity : AppCompatActivity() {
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // ⚠️ [임시] 카카오맵 키 해시 출력 - 등록 후 이 블록 삭제!
+        try {
+            val info = packageManager.getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNATURES)
+            for (sig in info.signatures.orEmpty()) {
+                val md = java.security.MessageDigest.getInstance("SHA")
+                md.update(sig.toByteArray())
+                val hash = android.util.Base64.encodeToString(md.digest(), android.util.Base64.DEFAULT)
+                android.util.Log.d("KeyHash", "카카오 키 해시: $hash")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("KeyHash", "키 해시 추출 실패: ${e.message}")
+        }
+
+
         sessionManager = SessionManager(this)
 
         binding.btnLogin.setOnClickListener {

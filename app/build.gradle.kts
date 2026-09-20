@@ -15,6 +15,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // 에뮬레이터에서 카카오 지도 사용을 위한 설정
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+        }
     }
 
     buildTypes {
@@ -77,4 +82,13 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    
+    // 카카오맵 Open SDK (v2)
+    implementation("com.kakao.maps.open:android:2.12.8")
+
+    // 카카오 로그인 SDK (키 해시 추출용)
+    implementation("com.kakao.sdk:v2-user:2.20.6")
+
+    // 위치 추적 (GPS)
+    implementation("com.google.android.gms:play-services-location:21.3.0")
 }

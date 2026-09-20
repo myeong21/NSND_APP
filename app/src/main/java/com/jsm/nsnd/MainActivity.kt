@@ -163,6 +163,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.contactFragment  -> getString(R.string.nav_contact)
                 R.id.massagerFragment -> getString(R.string.nav_massager)
                 R.id.sleepDataFragment -> getString(R.string.nav_sleep)
+                R.id.mapFragment       -> getString(R.string.nav_map)
                 else -> getString(R.string.app_name)
             }
         }

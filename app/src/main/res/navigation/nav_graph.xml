@@ -33,4 +33,11 @@
         android:label="@string/nav_sleep"
         tools:layout="@layout/fragment_sleep_data" />
 
+    <!-- 주행 지도 탭 -->
+    <fragment
+        android:id="@+id/mapFragment"
+        android:name="com.jsm.nsnd.ui.map.MapFragment"
+        android:label="@string/nav_map"
+        tools:layout="@layout/fragment_map" />
+
 </navigation>

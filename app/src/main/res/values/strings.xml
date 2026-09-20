@@ -27,6 +27,7 @@
     <string name="nav_contact">연락설정</string>
     <string name="nav_massager">마사지기</string>
     <string name="nav_sleep">수면데이터</string>
+    <string name="nav_map">주행지도</string>
 
     <!-- 홈 화면 -->
     <string name="home_co2_label">실내 CO₂ 농도</string>
