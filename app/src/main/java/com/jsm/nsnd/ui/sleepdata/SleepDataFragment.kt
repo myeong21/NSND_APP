@@ -16,6 +16,10 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import android.widget.AdapterView
+import com.jsm.nsnd.ui.common.MapRecord
+import com.jsm.nsnd.ui.common.MapRecordDialogs
+import com.jsm.nsnd.ui.common.ServerMapRecords
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -31,7 +35,13 @@ import com.jsm.nsnd.R
 import com.jsm.nsnd.data.session.SessionManager
 import com.jsm.nsnd.databinding.FragmentSleepDataBinding
 import com.jsm.nsnd.network.RetrofitClient
-import com.jsm.nsnd.network.model.DrowsyEvent
+import com.jsm.nsnd.data.local.LocalDetectionRecord
+import com.jsm.nsnd.data.local.LocalDetectionStore
+import com.jsm.nsnd.ui.common.LocalRecordDialogs
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.Job
+import com.jsm.nsnd.ui.main.MainActivity
 import com.jsm.nsnd.network.model.ReportByDateResponse
 import com.jsm.nsnd.network.model.ReportHistoryResponse
 import com.jsm.nsnd.ui.auth.LoginActivity
@@ -56,10 +66,32 @@ class SleepDataFragment : Fragment() {
 
     private var selectedCalendar = Calendar.getInstance()
     private var isMapReady = false
-    private var dateLocationEvents: List<DrowsyEvent> = emptyList()
+    private var localLoadJob: Job? = null
+    private var dateLocalRecords: List<LocalDetectionRecord> = emptyList()
+    private var dateLocationEvents: List<LocalDetectionRecord> = emptyList()
+    private var dateServerRecords: List<MapRecord> = emptyList()
+    private var displayedMapRecords: List<MapRecord> = emptyList()
+    private var showServerRecords = false
+    private var reportJob: Job? = null
+    private var historyJob: Job? = null
+    private var historyLocalRecords: List<LocalDetectionRecord> = emptyList()
 
     private val sessionManager by lazy { SessionManager(requireContext()) }
     private val token: String get() = sessionManager.getToken().orEmpty()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        savedInstanceState?.let {
+            selectedCalendar.timeInMillis = it.getLong("sleep_selected_date", selectedCalendar.timeInMillis)
+            showServerRecords = it.getBoolean("sleep_server_records", false)
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putLong("sleep_selected_date", selectedCalendar.timeInMillis)
+        outState.putBoolean("sleep_server_records", showServerRecords)
+        super.onSaveInstanceState(outState)
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -78,14 +110,33 @@ class SleepDataFragment : Fragment() {
         setupDateDisplay()
         setupCalendarButton()
         setupMapWebView()
+        binding.spinnerRecordSource.setSelection(if (showServerRecords) 1 else 0)
+        binding.spinnerRecordSource.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                showServerRecords = position == 1
+                renderDateRecords()
+            }
+        }
 
         binding.btnRetrySleep.setOnClickListener { loadReportData() }
         binding.btnRefreshHistory.setOnClickListener { loadHistoryData() }
         binding.btnOpenFullMap.setOnClickListener {
             try {
-                findNavController().navigate(R.id.mapFragment)
+                (requireActivity() as MainActivity).openMapTab(
+                    SimpleDateFormat("yyyy-MM-dd", Locale.US).format(selectedCalendar.time), showServerRecords)
             } catch (e: Exception) {
                 Log.e(TAG, "Navigation to mapFragment failed", e)
+            }
+        }
+
+        binding.btnLocalSleepRecords.setOnClickListener { MapRecordDialogs.list(requireContext(), displayedMapRecords, serverRecords = showServerRecords) }
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                LocalDetectionStore.changes.collect {
+                    loadLocalRecords()
+                    if (_binding?.layoutHistoryContainer?.visibility == View.VISIBLE) loadHistoryData()
+                }
             }
         }
 
@@ -190,17 +241,27 @@ class SleepDataFragment : Fragment() {
             activity?.runOnUiThread {
                 isMapReady = true
                 Log.i(TAG, "카카오맵 JavaScript API 준비 완료")
-                _binding?.tvMapEmpty?.visibility = View.GONE
+                if (_binding == null) return@runOnUiThread
+                _binding?.tvMapEmpty?.visibility = if (displayedMapRecords.none { it.hasCoordinates }) View.VISIBLE else View.GONE
                 // 맵 준비되면 대기 중이던 마커 표시
-                if (dateLocationEvents.isNotEmpty()) {
-                    displayMapMarkers(dateLocationEvents)
+                if (displayedMapRecords.any { it.hasCoordinates }) {
+                    displayMapMarkers(displayedMapRecords.filter { it.hasCoordinates })
                 } else {
-                    val defaultLat = LocationTracker.currentLatitude ?: 37.402056
-                    val defaultLng = LocationTracker.currentLongitude ?: 127.108212
+                    // Initial map center is not a measured user location.
+                    val defaultLat = 37.402056
+                    val defaultLng = 127.108212
                     _binding?.mapWebView?.evaluateJavascript(
                         "moveCamera($defaultLat, $defaultLng, 5)", null
                     )
                 }
+            }
+        }
+        @JavascriptInterface
+        fun onLocalMarkerClick(recordId: String) {
+            activity?.runOnUiThread {
+                if (_binding == null) return@runOnUiThread
+                val record = displayedMapRecords.find { it.id == recordId } ?: return@runOnUiThread
+                MapRecordDialogs.selectAt(requireContext(), record, displayedMapRecords)
             }
         }
     }
@@ -208,23 +269,17 @@ class SleepDataFragment : Fragment() {
     // ─────────────────────────────────────────
     // 지도에 졸음 발생 위치 마커 표시 (WebView JS 호출)
     // ─────────────────────────────────────────
-    private fun displayMapMarkers(events: List<DrowsyEvent>) {
+    private fun displayMapMarkers(events: List<MapRecord>) {
         val webView = _binding?.mapWebView ?: return
         if (!isMapReady) return
 
         webView.evaluateJavascript("clearMarkers()", null)
 
-        events.forEach { event ->
-            val lat = event.latitude ?: return@forEach
-            val lng = event.longitude ?: return@forEach
-            val time = event.timestamp.substringAfter("T").take(5)
-            webView.evaluateJavascript(
-                "addMarker($lat, $lng, ${event.drowsy_level}, '$time')", null
-            )
-        }
+        events.forEach { webView.evaluateJavascript(it.markerJavascript(), null) }
+
 
         // 마커들이 모두 보이도록 지도 영역 자동 조정
-        webView.evaluateJavascript("fitBounds()", null)
+        if (events.isNotEmpty()) webView.evaluateJavascript("fitBounds()", null)
     }
 
     // ─────────────────────────────────────────
@@ -233,14 +288,21 @@ class SleepDataFragment : Fragment() {
     private fun loadReportData() {
         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val dateStr = sdf.format(selectedCalendar.time)
+        val account = sessionManager.getDetectionAccountKey()
+        reportJob?.cancel()
+        dateServerRecords = emptyList()
+        dateLocalRecords = emptyList()
+        renderDateRecords()
+        loadLocalRecords()
 
-        viewLifecycleOwner.lifecycleScope.launch {
+        reportJob = viewLifecycleOwner.lifecycleScope.launch {
             try {
                 showLoading(true)
                 val response = RetrofitClient.apiService(requireContext()).getReportByDate(
                     RetrofitClient.authHeader(token),
                     dateStr
                 )
+                if (_binding == null || sessionManager.getDetectionAccountKey() != account) return@launch
                 bindReportData(response)
             } catch (e: CancellationException) {
                 throw e
@@ -255,8 +317,8 @@ class SleepDataFragment : Fragment() {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "loadReportData error", e)
-                // 네트워크 등 예외 발생 시에도 지도는 항상 유지
-                bindEmptyDateData(dateStr)
+                // 네트워크 실패를 서버의 100점/0건 통계로 표현하지 않습니다.
+                showError("서버 통계 연결 실패 · 로컬 기록은 아래에서 확인하세요.")
             } finally {
                 if (_binding != null) showLoading(false)
             }
@@ -323,28 +385,49 @@ class SleepDataFragment : Fragment() {
         // 3. 차트 설정
         setupChart(data)
 
-        // 4. [15~16차] 카카오맵 마커 표시 (WebView)
-        dateLocationEvents = data.events.filter { it.latitude != null && it.longitude != null }
-        b.tvMapEventCount.text = if (dateLocationEvents.isEmpty()) "위치 기록 없음" else "위치 ${dateLocationEvents.size}건"
-        b.mapWebView.visibility = View.VISIBLE
-
-        if (dateLocationEvents.isEmpty()) {
-            b.tvMapEmpty.visibility = View.GONE
-        } else {
-            b.tvMapEmpty.visibility = View.GONE
-            displayMapMarkers(dateLocationEvents)
-        }
-
-        // 5. 상세 이벤트 리스트
-        val events = data.events.map { event ->
-            val timePart = event.timestamp.substringAfter("T").take(5)
-            val location = if (event.latitude != null && event.longitude != null)
-                "${String.format(Locale.US, "%.4f", event.latitude)}, ${String.format(Locale.US, "%.4f", event.longitude)}"
-            else "-"
-            SleepEventItem(timePart, location, event.drowsy_level)
-        }
-        setupRecyclerView(events)
+        dateServerRecords = ServerMapRecords.rows(data.events, "date:${data.date}")
+        renderDateRecords()
     }
+
+    private fun loadLocalRecords() {
+        localLoadJob?.cancel()
+        val account = sessionManager.getDetectionAccountKey()
+        val day = selectedCalendar.clone() as Calendar
+        day.set(Calendar.HOUR_OF_DAY, 0); day.set(Calendar.MINUTE, 0); day.set(Calendar.SECOND, 0); day.set(Calendar.MILLISECOND, 0)
+        val from = day.timeInMillis
+        day.add(Calendar.DAY_OF_MONTH, 1)
+        val until = day.timeInMillis
+        localLoadJob = viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val records = if (account == null) emptyList() else LocalDetectionStore.get(requireContext()).query(account, from, until)
+                val b = _binding ?: return@launch
+                if (sessionManager.getDetectionAccountKey() != account) return@launch
+                dateLocalRecords = records
+                dateLocationEvents = records.filter { it.hasCoordinates }
+                renderDateRecords()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { Log.e(TAG, "로컬 기록 조회 실패", e) }
+        }
+    }
+
+    private fun renderDateRecords() {
+        val b = _binding ?: return
+        displayedMapRecords = if (showServerRecords) dateServerRecords else dateLocalRecords.map(MapRecord::fromLocal)
+        val locations = displayedMapRecords.filter { it.hasCoordinates }
+        val source = if (showServerRecords) "서버" else "로컬"
+        b.tvMapEventCount.text = "$source 위치 ${locations.size}건"
+        b.btnLocalSleepRecords.text = "$source 기록 ${displayedMapRecords.size}건 · 위치 없음 ${displayedMapRecords.size - locations.size}건 · 목록 보기"
+        b.tvMapEmpty.visibility = if (locations.isEmpty()) View.VISIBLE else View.GONE
+        b.tvEventSourceTitle.text = if (showServerRecords) "서버 감지 기록 · 서버 기록 시각" else "로컬 감지 기록 · 앱 수신 시각"
+        displayMapMarkers(locations)
+        setupRecyclerView(displayedMapRecords.map {
+            SleepEventItem("${it.timeLabel()} ${it.receiptText()}", it.coordinatesText() +
+                if (it.isLocal) "\nEAR ${it.ear ?: "없음"} · 예측 ${it.predictionScore ?: "없음"}" else "",
+                it.stage, localRecord = it.local, serverRecord = if (it.isLocal) null else it)
+        })
+    }
+
+
 
     private fun setupChart(data: ReportByDateResponse) {
         val b = _binding ?: return
@@ -441,18 +524,26 @@ class SleepDataFragment : Fragment() {
         b.historyProgressBar.visibility = View.VISIBLE
         b.layoutHistoryEmpty.visibility = View.GONE
 
-        viewLifecycleOwner.lifecycleScope.launch {
+        historyJob?.cancel()
+        val account = sessionManager.getDetectionAccountKey() ?: return
+        historyJob = viewLifecycleOwner.lifecycleScope.launch {
             try {
+                historyLocalRecords = LocalDetectionStore.get(requireContext()).query(account)
+                if (_binding == null || account != sessionManager.getDetectionAccountKey()) return@launch
+                bindHistoryData(ReportHistoryResponse(total_sessions = 0, sessions = emptyList()))
                 val api = RetrofitClient.apiService(requireContext())
                 val response = api.getReportHistory(RetrofitClient.authHeader(token))
+                if (_binding == null || account != sessionManager.getDetectionAccountKey()) return@launch
                 bindHistoryData(response)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: HttpException) {
                 if (e.code() == 401) {
                     handleSessionExpired()
                 } else if (e.code() == 404) {
                     bindHistoryData(ReportHistoryResponse(total_sessions = 0, sessions = emptyList()))
                 } else {
-                    b.layoutHistoryEmpty.visibility = View.VISIBLE
+                    bindHistoryData(ReportHistoryResponse(total_sessions = 0, sessions = emptyList()))
                     Toast.makeText(requireContext(), ApiErrorMessage.fromHttpException(e), Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
@@ -466,23 +557,21 @@ class SleepDataFragment : Fragment() {
 
     private fun bindHistoryData(response: ReportHistoryResponse) {
         val b = _binding ?: return
-        val sessions = response.sessions
-
-        b.tvHistoryHeader.text = "전체 운전 세션 기록 (${response.total_sessions}건)"
-
-        if (sessions.isEmpty()) {
-            b.layoutHistoryEmpty.visibility = View.VISIBLE
-            b.rvSessionHistory.visibility = View.GONE
-        } else {
-            b.layoutHistoryEmpty.visibility = View.GONE
-            b.rvSessionHistory.visibility = View.VISIBLE
-            b.rvSessionHistory.apply {
-                layoutManager = LinearLayoutManager(requireContext())
-                adapter = SessionHistoryAdapter(sessions) { item ->
-                    // 항목 클릭 시 상세 리포트 바텀시트 표출
-                    SessionDetailBottomSheetFragment.newInstance(item.session_id)
-                        .show(parentFragmentManager, "SessionDetail")
-                }
+        val localGroups = historyLocalRecords.groupBy { it.sessionId }.values
+        val sessions = (response.sessions.map { SessionHistoryRow(server = it) } +
+            localGroups.map { SessionHistoryRow(local = it) }).sortedByDescending { it.timestamp }
+        b.tvHistoryHeader.text = "서버 세션 ${response.sessions.size}건 · 로컬 세션 ${localGroups.size}건"
+        b.layoutHistoryEmpty.visibility = if (sessions.isEmpty()) View.VISIBLE else View.GONE
+        b.rvSessionHistory.visibility = if (sessions.isEmpty()) View.GONE else View.VISIBLE
+        b.rvSessionHistory.layoutManager = LinearLayoutManager(requireContext())
+        b.rvSessionHistory.adapter = SessionHistoryAdapter(sessions) { item ->
+            if (item.server != null) {
+                SessionDetailBottomSheetFragment.newInstance(item.server.session_id)
+                    .show(parentFragmentManager, "SessionDetail")
+            } else {
+                val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(
+                    java.util.Date(item.local.first().receivedAtMs))
+                (requireActivity() as MainActivity).openMapTab(date, false)
             }
         }
     }
@@ -495,9 +584,9 @@ class SleepDataFragment : Fragment() {
     private fun showError(message: String? = null) {
         val b = _binding ?: return
         b.layoutSleepEmpty.visibility = View.VISIBLE
+        b.layoutSleepEmpty.visibility = if (dateLocalRecords.isEmpty()) View.VISIBLE else View.GONE
         b.tvSleepEmpty.text = message ?: "수면 데이터를 불러오지 못했습니다."
         b.btnRetrySleep.visibility = View.VISIBLE
-        b.rvSleepEvents.visibility = View.GONE
         b.cardSafetyScore.visibility = View.GONE
         b.cardChart.visibility = View.GONE
         // 지도는 에러가 발생해도 항상 화면에 유지
@@ -515,6 +604,15 @@ class SleepDataFragment : Fragment() {
     }
 
     override fun onDestroyView() {
+        isMapReady = false
+        localLoadJob?.cancel()
+        reportJob?.cancel()
+        historyJob?.cancel()
+        historyLocalRecords = emptyList()
+        dateLocalRecords = emptyList()
+        dateLocationEvents = emptyList()
+        dateServerRecords = emptyList()
+        displayedMapRecords = emptyList()
         _binding?.mapWebView?.destroy()
         _binding = null
         super.onDestroyView()

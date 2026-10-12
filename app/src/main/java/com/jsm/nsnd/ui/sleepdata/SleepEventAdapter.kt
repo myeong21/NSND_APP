@@ -15,6 +15,14 @@ class SleepEventAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(item: SleepEventItem) {
+            binding.root.setOnClickListener {
+                item.serverRecord?.let { record ->
+                    com.jsm.nsnd.ui.common.MapRecordDialogs.detail(binding.root.context, record)
+                }
+                item.localRecord?.let { record ->
+                    com.jsm.nsnd.ui.common.LocalRecordDialogs.detail(binding.root.context, record)
+                }
+            }
             binding.tvSleepTime.text = item.time
             binding.tvSleepLocation.text = item.location
 

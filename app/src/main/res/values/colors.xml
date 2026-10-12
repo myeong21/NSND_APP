@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <!-- 기본 공통 색상 -->
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+
     <!-- NSND 디자인 시스템: Calm Blue + Safety semantic colors -->
     <color name="accent_primary">#287CF5</color>
     <color name="accent_primary_dark">#1767D6</color>

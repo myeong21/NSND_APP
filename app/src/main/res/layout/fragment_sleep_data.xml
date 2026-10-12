@@ -136,7 +136,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
                                 android:fontFamily="sans-serif-medium"
-                                android:text="졸음 발생 위치 (카카오맵)"
+                                android:text="졸음 발생 위치"
                                 android:textColor="@color/text_primary"
                                 android:textSize="15sp" />
 
@@ -156,11 +156,27 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="지도 상의 마커를 터치하면 상세 시각과 졸음 단계를 확인합니다."
+                            android:text="로컬 기록은 앱 수신 시각, 서버 기록은 서버 저장 시각입니다. 선택한 출처만 표시합니다."
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
 
                         <!-- 카카오맵 뷰 프레임 -->
+                        <androidx.appcompat.widget.AppCompatSpinner
+                            android:id="@+id/spinnerRecordSource"
+                            android:layout_width="match_parent"
+                            android:layout_height="40dp"
+                            android:entries="@array/map_record_sources"
+                            android:contentDescription="지도 기록 출처 선택" />
+                        <TextView
+                            android:id="@+id/btnLocalSleepRecords"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:paddingVertical="10dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:text="로컬 기록 목록 보기 · 위치 없는 기록 포함"
+                            android:textColor="@color/accent_primary"
+                            android:textSize="12sp" />
                         <FrameLayout
                             android:layout_width="match_parent"
                             android:layout_height="220dp"
@@ -223,7 +239,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="오늘의 안전 점수"
+                            android:text="서버 통계 · 안전 점수"
                             android:textColor="@color/text_secondary"
                             android:textSize="13sp" />
 
@@ -270,7 +286,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="8dp"
                                     android:lineSpacingMultiplier="1.25"
-                                    android:text="운전 중 감지된 졸음 기록을 기반으로 계산한 점수입니다."
+                                    android:text="서버 감지 기록으로 계산한 점수입니다. 로컬 위치 기록과 합산하지 않습니다."
                                     android:textColor="@color/text_secondary"
                                     android:textSize="12sp" />
                             </LinearLayout>
@@ -455,7 +471,8 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="20dp"
                     android:fontFamily="sans-serif-medium"
-                    android:text="상세 감지 기록"
+                    android:id="@+id/tvEventSourceTitle"
+                    android:text="로컬 감지 기록 · 앱 수신 시각"
                     android:textColor="@color/text_primary"
                     android:textSize="16sp" />
 

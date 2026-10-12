@@ -169,6 +169,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Full-map exploration must use the same saved tab stacks as bottom navigation. */
+    fun openMapTab(date: String? = null, serverRecords: Boolean = false) {
+        binding.bottomNavigation.selectedItemId = R.id.mapFragment
+        if (date != null) binding.bottomNavigation.post {
+            if (navController.currentDestination?.id != R.id.mapFragment) return@post
+            val host = supportFragmentManager.findFragmentById(R.id.navHostFragment) as? NavHostFragment
+            (host?.childFragmentManager?.primaryNavigationFragment as? com.jsm.nsnd.ui.map.MapFragment)
+                ?.applyRecordSelection(date, serverRecords)
+        }
+    }
+
     // ─────────────────────────────────────────
     // 사이드바 설정
     // ─────────────────────────────────────────

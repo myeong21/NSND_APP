@@ -6,6 +6,10 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import android.widget.AdapterView
+import com.jsm.nsnd.ui.common.MapRecord
+import com.jsm.nsnd.ui.common.MapRecordDialogs
+import com.jsm.nsnd.ui.common.ServerMapRecords
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
@@ -13,7 +17,12 @@ import com.jsm.nsnd.R
 import com.jsm.nsnd.data.session.SessionManager
 import com.jsm.nsnd.databinding.BottomSheetSessionDetailBinding
 import com.jsm.nsnd.network.RetrofitClient
-import com.jsm.nsnd.network.model.DrowsyEvent
+import com.jsm.nsnd.data.local.LocalDetectionRecord
+import com.jsm.nsnd.data.local.LocalDetectionStore
+import com.jsm.nsnd.ui.common.LocalRecordDialogs
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.CancellationException
 import com.jsm.nsnd.network.model.ReportSummaryResponse
 import com.jsm.nsnd.ui.common.ApiErrorMessage
 import com.kakao.vectormap.KakaoMap
@@ -45,7 +54,12 @@ class SessionDetailBottomSheetFragment : BottomSheetDialogFragment() {
 
     private var sessionId: Int = -1
     private var kakaoMapInstance: KakaoMap? = null
-    private var locationEvents: List<DrowsyEvent> = emptyList()
+    private var locationEvents: List<MapRecord> = emptyList()
+    private var localRecords: List<LocalDetectionRecord> = emptyList()
+    private var serverRecords: List<MapRecord> = emptyList()
+    private var displayedRecords: List<MapRecord> = emptyList()
+    private var showServerRecords = false
+    private var mapStarted = false
 
     private val sessionManager by lazy { SessionManager(requireContext()) }
     private val token: String get() = sessionManager.getToken().orEmpty()
@@ -53,6 +67,7 @@ class SessionDetailBottomSheetFragment : BottomSheetDialogFragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         sessionId = arguments?.getInt(ARG_SESSION_ID, -1) ?: -1
+        showServerRecords = savedInstanceState?.getBoolean("detail_server_records", false) ?: false
     }
 
     override fun onCreateView(
@@ -69,6 +84,25 @@ class SessionDetailBottomSheetFragment : BottomSheetDialogFragment() {
 
         binding.tvDetailTitle.text = "세션 #$sessionId 상세 리포트"
         binding.btnClose.setOnClickListener { dismiss() }
+        binding.btnSessionLocalRecords.setOnClickListener { MapRecordDialogs.list(requireContext(), displayedRecords, serverRecords = showServerRecords) }
+        binding.spinnerRecordSource.setSelection(if (showServerRecords) 1 else 0)
+        binding.spinnerRecordSource.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                showServerRecords = position == 1
+                renderRecords()
+            }
+        }
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                LocalDetectionStore.changes.collect {
+                    val account = sessionManager.getDetectionAccountKey()
+                    val records = if (account == null) emptyList() else LocalDetectionStore.get(requireContext())
+                        .query(account, sessionId = sessionId)
+                    if (_binding != null && sessionManager.getDetectionAccountKey() == account) bindLocalRecords(records)
+                }
+            }
+        }
 
         loadSessionDetail()
     }
@@ -80,7 +114,7 @@ class SessionDetailBottomSheetFragment : BottomSheetDialogFragment() {
         }
 
         binding.detailProgressBar.visibility = View.VISIBLE
-        binding.layoutDetailContent.visibility = View.GONE
+        binding.layoutDetailContent.visibility = View.VISIBLE
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
@@ -90,6 +124,8 @@ class SessionDetailBottomSheetFragment : BottomSheetDialogFragment() {
                     sessionId
                 )
                 bindDetailData(detail)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("SessionDetail", "loadSessionDetail error", e)
                 Toast.makeText(
@@ -97,7 +133,7 @@ class SessionDetailBottomSheetFragment : BottomSheetDialogFragment() {
                     ApiErrorMessage.fromThrowable(e, "세션 상세 조회"),
                     Toast.LENGTH_SHORT
                 ).show()
-                dismiss()
+                _binding?.tvDetailSummary?.text = "서버 통계를 불러오지 못했습니다. 아래 위치와 기록은 앱 내부 저장 데이터입니다."
             } finally {
                 _binding?.detailProgressBar?.visibility = View.GONE
             }
@@ -110,7 +146,7 @@ class SessionDetailBottomSheetFragment : BottomSheetDialogFragment() {
 
         val dateText = data.started_at.replace("T", " ").take(16)
         val durationText = "${data.duration_minutes ?: 0}분 주행"
-        b.tvDetailSubtitle.text = "$dateText · $durationText"
+        b.tvDetailSubtitle.text = "서버 통계 · $dateText · $durationText"
 
         // 안전 점수 링뷰 및 점수
         b.tvDetailScore.text = data.safety_score.toString()
@@ -149,9 +185,22 @@ class SessionDetailBottomSheetFragment : BottomSheetDialogFragment() {
         b.tvDetailLevel2.text = "${data.level2_count}회"
         b.tvDetailLevel3.text = "${data.level3_count}회"
 
-        // 위경도가 있는 이벤트 필터링
-        locationEvents = data.events.filter { it.latitude != null && it.longitude != null }
-        b.tvDetailMapDesc.text = "감지된 이벤트 ${locationEvents.size}건의 위치를 표시합니다."
+        serverRecords = ServerMapRecords.rows(data.events, "session:$sessionId", sessionId)
+        renderRecords()
+    }
+
+    private fun bindLocalRecords(records: List<LocalDetectionRecord>) {
+        localRecords = records
+        renderRecords()
+    }
+
+    private fun renderRecords() {
+        val b = _binding ?: return
+        displayedRecords = if (showServerRecords) serverRecords else localRecords.map(MapRecord::fromLocal)
+        locationEvents = displayedRecords.filter { it.hasCoordinates }
+        val source = if (showServerRecords) "서버" else "로컬"
+        b.tvDetailMapDesc.text = "$source 위치 ${locationEvents.size}건"
+        b.btnSessionLocalRecords.text = "$source 기록 ${displayedRecords.size}건 · 위치 없음 ${displayedRecords.size - locationEvents.size}건 · 목록 보기"
 
         if (locationEvents.isEmpty()) {
             b.tvDetailNoLocation.visibility = View.VISIBLE
@@ -159,12 +208,13 @@ class SessionDetailBottomSheetFragment : BottomSheetDialogFragment() {
         } else {
             b.tvDetailNoLocation.visibility = View.GONE
             b.detailMapView.visibility = View.VISIBLE
-            setupKakaoMap()
+            if (!mapStarted) setupKakaoMap() else kakaoMapInstance?.let { displayEventMarkers(it) }
         }
     }
 
     private fun setupKakaoMap() {
         val mapView = _binding?.detailMapView ?: return
+        mapStarted = true
 
         mapView.start(
             object : MapLifeCycleCallback() {
@@ -174,6 +224,12 @@ class SessionDetailBottomSheetFragment : BottomSheetDialogFragment() {
 
                 override fun onMapError(e: Exception) {
                     Log.e("SessionDetail", "카카오맵 초기화 오류", e)
+                    activity?.runOnUiThread {
+                        val b = _binding ?: return@runOnUiThread
+                        b.detailMapView.visibility = View.GONE
+                        b.tvDetailNoLocation.visibility = View.VISIBLE
+                        b.tvDetailNoLocation.text = "카카오맵 인증/로드 실패\n로컬 기록 목록에서 원본 좌표를 확인하세요."
+                    }
                 }
             },
             object : KakaoMapReadyCallback() {
@@ -185,14 +241,14 @@ class SessionDetailBottomSheetFragment : BottomSheetDialogFragment() {
         )
     }
 
-    private val detailLabelInfoMap = mutableMapOf<com.kakao.vectormap.label.Label, String>()
+    private val detailLabelInfoMap = mutableMapOf<com.kakao.vectormap.label.Label, MapRecord>()
 
     private fun displayEventMarkers(kakaoMap: KakaoMap) {
-        if (locationEvents.isEmpty()) return
-
         val labelManager = kakaoMap.labelManager ?: return
         val layer = labelManager.layer ?: return
+        detailLabelInfoMap.keys.toList().forEach { layer.remove(it) }
         detailLabelInfoMap.clear()
+        if (locationEvents.isEmpty()) return
 
         var sumLat = 0.0
         var sumLng = 0.0
@@ -203,7 +259,7 @@ class SessionDetailBottomSheetFragment : BottomSheetDialogFragment() {
             sumLat += lat
             sumLng += lng
 
-            val markerRes = when (event.drowsy_level) {
+            val markerRes = when (event.stage) {
                 3 -> R.drawable.ic_marker_stage3
                 2 -> R.drawable.ic_marker_stage2
                 else -> R.drawable.ic_marker_stage1
@@ -212,23 +268,21 @@ class SessionDetailBottomSheetFragment : BottomSheetDialogFragment() {
             val style = LabelStyles.from(LabelStyle.from(markerRes))
             val position = LatLng.from(lat, lng)
 
-            val time = event.timestamp.substringAfter("T").take(5)
             val label = layer.addLabel(LabelOptions.from(position).setStyles(style))
             if (label != null) {
-                detailLabelInfoMap[label] = "${event.drowsy_level}단계 졸음 ($time)"
+                detailLabelInfoMap[label] = event
             }
         }
 
         // 중심 좌표로 카메라 이동
-        val centerLat = sumLat / locationEvents.size
-        val centerLng = sumLng / locationEvents.size
-        val cameraUpdate = CameraUpdateFactory.newCenterPosition(LatLng.from(centerLat, centerLng), 14)
+        val points = locationEvents.map { LatLng.from(it.latitude!!, it.longitude!!) }.toTypedArray()
+        val cameraUpdate = CameraUpdateFactory.fitMapPoints(points, 50, 16)
         kakaoMap.moveCamera(cameraUpdate)
 
         // 마커 클릭 리스너
         kakaoMap.setOnLabelClickListener { _, _, label ->
-            val info = detailLabelInfoMap[label] ?: "졸음 감지 지점"
-            Toast.makeText(requireContext(), info, Toast.LENGTH_SHORT).show()
+            val event = detailLabelInfoMap[label]
+            if (event != null && _binding != null) MapRecordDialogs.selectAt(requireContext(), event, locationEvents)
             true
         }
     }
@@ -238,12 +292,24 @@ class SessionDetailBottomSheetFragment : BottomSheetDialogFragment() {
         _binding?.detailMapView?.resume()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean("detail_server_records", showServerRecords)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onPause() {
         _binding?.detailMapView?.pause()
         super.onPause()
     }
 
     override fun onDestroyView() {
+        mapStarted = false
+        kakaoMapInstance = null
+        localRecords = emptyList()
+        serverRecords = emptyList()
+        displayedRecords = emptyList()
+        locationEvents = emptyList()
+        detailLabelInfoMap.clear()
         _binding?.detailMapView?.finish()
         _binding = null
         super.onDestroyView()

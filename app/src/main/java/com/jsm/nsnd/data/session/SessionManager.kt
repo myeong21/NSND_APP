@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.Base64
 import org.json.JSONObject
 
-class SessionManager(context: Context) {
+class SessionManager(private val context: Context) {
     private val prefs = context.getSharedPreferences("nsnd_prefs", Context.MODE_PRIVATE)
 
     fun saveToken(token: String) {
@@ -20,6 +20,8 @@ class SessionManager(context: Context) {
     }
 
     fun clear() {
+        context.applicationContext.stopService(android.content.Intent(context, com.jsm.nsnd.service.DetectionForegroundService::class.java))
+        com.jsm.nsnd.service.LocationTracker.stopAllTracking()
         prefs.edit()
             .remove("access_token")
             .remove("active_session_id")
@@ -34,10 +36,24 @@ class SessionManager(context: Context) {
 
     fun clearActiveSessionId() {
         prefs.edit().remove("active_session_id").apply()
+        context.applicationContext.stopService(android.content.Intent(context, com.jsm.nsnd.service.DetectionForegroundService::class.java))
+        com.jsm.nsnd.service.LocationTracker.stopAllTracking()
     }
 
     fun isLoggedIn(): Boolean {
         return !getToken().isNullOrBlank()
+    }
+
+    /** The backend issues a numeric user ID as JWT sub. Never store events as guest. */
+    fun getUserId(): Long? = runCatching {
+        val payload = getToken()?.split(".")?.getOrNull(1) ?: return@runCatching null
+        val padding = "=".repeat((4 - payload.length % 4) % 4)
+        val decoded = String(Base64.decode(payload + padding, Base64.URL_SAFE), Charsets.UTF_8)
+        JSONObject(decoded).optString("sub").toLongOrNull()?.takeIf { it > 0 }
+    }.getOrNull()
+
+    fun getDetectionAccountKey(): String? = getUserId()?.let {
+        "${ServerConfig.getHttpBaseUrl(context)}user:$it"
     }
 
     /** 계정마다 로컬 데이터를 분리하기 위한 안정적인 JWT subject 값입니다. */

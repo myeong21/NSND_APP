@@ -3,8 +3,12 @@ package com.jsm.nsnd.ui.map
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.DatePickerDialog
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
+import android.location.Location
+import android.location.LocationManager
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -18,18 +22,31 @@ import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.location.LocationManagerCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import com.jsm.nsnd.R
 import com.jsm.nsnd.data.session.SessionManager
 import com.jsm.nsnd.databinding.FragmentMapBinding
+import com.jsm.nsnd.ui.common.MapRecord
+import com.jsm.nsnd.ui.common.MapRecordDialogs
+import com.jsm.nsnd.ui.common.ServerMapRecords
 import com.jsm.nsnd.network.RetrofitClient
-import com.jsm.nsnd.network.model.DrowsyEvent
-import com.jsm.nsnd.network.model.ReportByDateResponse
+import com.jsm.nsnd.ui.common.ApiErrorMessage
+import retrofit2.HttpException
+import android.widget.AdapterView
+import com.jsm.nsnd.data.local.LocalDetectionStore
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import com.google.android.gms.location.CurrentLocationRequest
 import com.jsm.nsnd.service.LocationTracker
 import com.jsm.nsnd.ui.auth.LoginActivity
-import com.jsm.nsnd.ui.common.ApiErrorMessage
 import com.kakao.vectormap.KakaoMap
 import com.kakao.vectormap.KakaoMapReadyCallback
 import com.kakao.vectormap.LatLng
@@ -40,7 +57,6 @@ import com.kakao.vectormap.label.LabelOptions
 import com.kakao.vectormap.label.LabelStyle
 import com.kakao.vectormap.label.LabelStyles
 import kotlinx.coroutines.launch
-import retrofit2.HttpException
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -60,12 +76,39 @@ class MapFragment : Fragment() {
     private var isWebViewReady = false
     private var isUsingWebViewFallback = false
 
+    private var myLocationLabel: Label? = null
+    private var pendingUserLocation: LatLng? = null
+    private var isFetchingLocation = false
+    private var currentUserFix: Location? = null
+    private var locationCancellation: CancellationTokenSource? = null
+    private var loadJob: Job? = null
+    private var allLocalRecords: List<MapRecord> = emptyList()
+    private var showServerRecords = false
+
+    // true: 전체 누적 졸음 기록 모드, false: 특정 날짜 필터 모드
+    private var isAllMode = true
+
     private var selectedCalendar = Calendar.getInstance()
-    private var locationEvents: List<DrowsyEvent> = emptyList()
-    private val markerEventMap = mutableMapOf<Label, DrowsyEvent>()
+    private var locationEvents: List<MapRecord> = emptyList()
+    private val markerEventMap = mutableMapOf<Label, MapRecord>()
 
     private val sessionManager by lazy { SessionManager(requireContext()) }
-    private val token: String get() = sessionManager.getToken().orEmpty()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        savedInstanceState?.let {
+            selectedCalendar.timeInMillis = it.getLong("map_selected_date", selectedCalendar.timeInMillis)
+            showServerRecords = it.getBoolean("map_server_records", false)
+            isAllMode = it.getBoolean("map_all_records", true)
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putLong("map_selected_date", selectedCalendar.timeInMillis)
+        outState.putBoolean("map_server_records", showServerRecords)
+        outState.putBoolean("map_all_records", isAllMode)
+        super.onSaveInstanceState(outState)
+    }
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -91,15 +134,37 @@ class MapFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        setupDateSelector()
+        setupFilterControls()
         setupFabControls()
         setupDetailCard()
+        binding.spinnerRecordSource.setSelection(if (showServerRecords) 1 else 0)
+        binding.spinnerRecordSource.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                if (showServerRecords != (position == 1)) {
+                    showServerRecords = position == 1
+                    bindLocalRecords(emptyList())
+                    loadMapReportData()
+                }
+            }
+        }
 
-        // 1. 서버 데이터 먼저 조회 (지도 준비 여부와 상관없이 통계 및 마커 데이터 즉시 표시)
+        // 로컬 수신 기록만 조회. 서버 통계와 임의로 합산하지 않습니다.
         loadMapReportData()
 
         // 2. 카카오 네이티브 맵 시도 (키 해시 오류 시 웹뷰로 자동 폴백)
         setupKakaoMap()
+        binding.btnLocalRecords.setOnClickListener {
+            MapRecordDialogs.list(requireContext(), allLocalRecords, serverRecords = showServerRecords) { selectLocalRecord(it) }
+        }
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch { LocalDetectionStore.changes.collect { if (!showServerRecords) loadMapReportData() } }
+                launch {
+                    while (true) { refreshUserMarker(); delay(5_000L) }
+                }
+            }
+        }
     }
 
     // ─────────────────────────────────────────
@@ -148,7 +213,7 @@ class MapFragment : Fragment() {
                         kakaoMap.setOnLabelClickListener { _, _, label ->
                             val event = markerEventMap[label]
                             if (event != null && _binding != null) {
-                                showEventDetail(event)
+                                MapRecordDialogs.selectAt(requireContext(), event, locationEvents) { selectLocalRecord(it) }
                                 val lat = event.latitude
                                 val lng = event.longitude
                                 if (lat != null && lng != null) {
@@ -164,6 +229,7 @@ class MapFragment : Fragment() {
                             displayMarkersOnNativeMap(kakaoMap)
                             focusAllMarkersOnNativeMap(kakaoMap)
                         }
+                        refreshUserMarker()
                     }
                 }
             }
@@ -171,7 +237,7 @@ class MapFragment : Fragment() {
     }
 
     // ─────────────────────────────────────────
-    // 2. 웹뷰 기반 카카오맵 폴백 (키 해시 미등록 환경에서도 100% 정상 작동)
+    // 2. 웹뷰 기반 카카오맵 폴백 (JavaScript 키와 등록 도메인이 필요)
     // ─────────────────────────────────────────
     @SuppressLint("SetJavaScriptEnabled")
     private fun activateWebViewFallback() {
@@ -228,61 +294,89 @@ class MapFragment : Fragment() {
                 if (locationEvents.isNotEmpty()) {
                     displayMarkersOnWebView()
                 } else {
-                    val defaultLat = LocationTracker.currentLatitude ?: 37.402056
-                    val defaultLng = LocationTracker.currentLongitude ?: 127.108212
+                    // 지도 초기 중심이며 현재 위치를 의미하지 않습니다.
+                    val defaultLat = 37.402056
+                    val defaultLng = 127.108212
                     _binding?.mapWebView?.evaluateJavascript("moveCamera($defaultLat, $defaultLng, 5)", null)
                 }
+
+                refreshUserMarker()
+
+
             }
         }
 
         @JavascriptInterface
-        fun onMarkerClick(level: Int, time: String, lat: Double, lng: Double) {
+        fun onLocalMarkerClick(recordId: String) {
             activity?.runOnUiThread {
-                val matching = locationEvents.find {
-                    it.latitude != null && Math.abs(it.latitude - lat) < 0.0001 &&
-                            it.longitude != null && Math.abs(it.longitude - lng) < 0.0001
-                } ?: DrowsyEvent(
-                    timestamp = if (time.contains("T")) time else "2026-09-20T$time:00",
-                    drowsy_level = level,
-                    latitude = lat,
-                    longitude = lng
-                )
-                showEventDetail(matching)
+                if (_binding == null) return@runOnUiThread
+                val record = locationEvents.find { it.id == recordId } ?: return@runOnUiThread
+                MapRecordDialogs.selectAt(requireContext(), record, locationEvents) { selectLocalRecord(it) }
             }
         }
     }
 
-    // ─────────────────────────────────────────
-    // 3. 날짜 선택 및 갱신 UI
-    // ─────────────────────────────────────────
-    private fun setupDateSelector() {
-        updateDateDisplay()
 
-        binding.btnDateSelector.setOnClickListener {
+    // ─────────────────────────────────────────
+    // 3. 필터 토글 (전체 기록 vs 날짜 선택) 및 갱신 UI
+    // ─────────────────────────────────────────
+    private fun setupFilterControls() {
+        updateFilterUI()
+
+        // 1) 전체 기록 모드 클릭
+        binding.btnFilterAll.setOnClickListener {
+            if (!isAllMode) {
+                isAllMode = true
+                updateFilterUI()
+                loadMapReportData()
+            }
+        }
+
+        // 2) 날짜별 선택 모드 클릭 (달력 다이얼로그)
+        binding.btnFilterDate.setOnClickListener {
             val year = selectedCalendar.get(Calendar.YEAR)
             val month = selectedCalendar.get(Calendar.MONTH)
             val day = selectedCalendar.get(Calendar.DAY_OF_MONTH)
 
             DatePickerDialog(requireContext(), { _, y, m, d ->
                 selectedCalendar.set(y, m, d)
-                updateDateDisplay()
+                isAllMode = false
+                updateFilterUI()
                 loadMapReportData()
             }, year, month, day).show()
         }
 
+        // 3) 새로고침
         binding.btnRefreshMap.setOnClickListener {
             loadMapReportData()
         }
     }
 
-    private fun updateDateDisplay() {
-        val today = Calendar.getInstance()
-        val isToday = selectedCalendar.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
-                selectedCalendar.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR)
+    private fun updateFilterUI() {
+        val b = _binding ?: return
+        if (isAllMode) {
+            b.btnFilterAll.setBackgroundResource(R.drawable.bg_filter_pill_active)
+            b.btnFilterAll.setTextColor(ContextCompat.getColor(requireContext(), R.color.white))
 
-        val sdf = SimpleDateFormat("yyyy년 M월 d일", Locale.KOREAN)
-        val dateStr = sdf.format(selectedCalendar.time)
-        binding.tvMapDate.text = if (isToday) "$dateStr (오늘)" else dateStr
+            b.btnFilterDate.setBackgroundResource(R.drawable.bg_filter_pill_inactive)
+            b.ivCalendarIcon.imageTintList = ColorStateList.valueOf(
+                ContextCompat.getColor(requireContext(), R.color.text_secondary)
+            )
+            b.tvMapDate.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+            b.tvMapDate.text = "날짜별 선택"
+        } else {
+            b.btnFilterAll.setBackgroundResource(R.drawable.bg_filter_pill_inactive)
+            b.btnFilterAll.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+
+            b.btnFilterDate.setBackgroundResource(R.drawable.bg_filter_pill_active)
+            b.ivCalendarIcon.imageTintList = ColorStateList.valueOf(
+                ContextCompat.getColor(requireContext(), R.color.white)
+            )
+            b.tvMapDate.setTextColor(ContextCompat.getColor(requireContext(), R.color.white))
+
+            val sdf = SimpleDateFormat("yyyy.MM.dd", Locale.KOREAN)
+            b.tvMapDate.text = sdf.format(selectedCalendar.time)
+        }
     }
 
     // ─────────────────────────────────────────
@@ -299,7 +393,7 @@ class MapFragment : Fragment() {
             if (isNativeMapReady && kakaoMapInstance != null) {
                 focusAllMarkersOnNativeMap(kakaoMapInstance!!)
             } else if (isWebViewReady) {
-                binding.mapWebView.evaluateJavascript("fitBounds();", null)
+                focusAllMarkersOnWebView()
             }
         }
 
@@ -331,36 +425,93 @@ class MapFragment : Fragment() {
     }
 
     private fun moveToCurrentLocation() {
-        // 1) LocationTracker에 캐시된 위치 우선 확인
-        val cachedLat = LocationTracker.currentLatitude
-        val cachedLng = LocationTracker.currentLongitude
-        if (cachedLat != null && cachedLng != null) {
-            applyLocationToMap(cachedLat, cachedLng)
+        if (isFetchingLocation) return
+        val cached = LocationTracker.freshLocation(requireContext())
+        if (cached != null) { showCurrentFix(cached); return }
+        currentUserFix = null
+        refreshUserMarker()
+        val manager = requireContext().getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+        if (manager != null && !LocationManagerCompat.isLocationEnabled(manager)) {
+            Toast.makeText(requireContext(), "위치 서비스를 켜주세요. 기록은 위치 없이 저장됩니다.", Toast.LENGTH_LONG).show()
             return
         }
-
-        // 2) FusedLocationProviderClient에서 마지막 위치 조회
+        isFetchingLocation = true
+        val cancellation = CancellationTokenSource()
+        locationCancellation = cancellation
+        val request = CurrentLocationRequest.Builder().setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+            .setMaxUpdateAgeMillis(30_000L).setDurationMillis(5_000L).build()
         try {
-            val fusedClient = LocationServices.getFusedLocationProviderClient(requireContext())
-            fusedClient.lastLocation.addOnSuccessListener { location ->
-                if (location != null && _binding != null) {
-                    applyLocationToMap(location.latitude, location.longitude)
-                } else {
-                    Toast.makeText(requireContext(), "현재 위치를 확인할 수 없습니다.", Toast.LENGTH_SHORT).show()
+            LocationServices.getFusedLocationProviderClient(requireContext())
+                .getCurrentLocation(request, cancellation.token)
+                .addOnCompleteListener { task ->
+                    if (_binding == null || !isAdded || locationCancellation !== cancellation) return@addOnCompleteListener
+                    isFetchingLocation = false
+                    locationCancellation = null
+                    val location = if (task.isSuccessful) task.result else null
+                    if (location != null && LocationTracker.snapshotOf(location).latitude != null && hasLocationPermission()) {
+                        showCurrentFix(location)
+                    } else {
+                        Toast.makeText(requireContext(), "최신 위치를 확인할 수 없습니다. 기본 중심은 내 위치가 아닙니다.", Toast.LENGTH_LONG).show()
+                    }
                 }
-            }.addOnFailureListener {
-                Toast.makeText(requireContext(), "위치 정보를 가져오는 데 실패했습니다.", Toast.LENGTH_SHORT).show()
+            viewLifecycleOwner.lifecycleScope.launch {
+                delay(6_000L)
+                if (locationCancellation === cancellation) {
+                    cancellation.cancel(); locationCancellation = null; isFetchingLocation = false
+                    Toast.makeText(requireContext(), "위치 수신 시간이 초과되었습니다.", Toast.LENGTH_SHORT).show()
+                }
             }
         } catch (e: SecurityException) {
-            Log.e(TAG, "위치 권한 오류", e)
+            cancellation.cancel(); locationCancellation = null; isFetchingLocation = false
+            Toast.makeText(requireContext(), "위치 권한을 확인해주세요.", Toast.LENGTH_SHORT).show()
         }
     }
 
-    private fun applyLocationToMap(lat: Double, lng: Double) {
-        if (isNativeMapReady && kakaoMapInstance != null) {
-            kakaoMapInstance?.moveCamera(CameraUpdateFactory.newCenterPosition(LatLng.from(lat, lng), 16))
+    private fun showCurrentFix(location: Location) {
+        currentUserFix = Location(location)
+        val lat = location.latitude
+        val lng = location.longitude
+        if (lat !in 33.0..39.0 || lng !in 124.0..132.0) {
+            Toast.makeText(requireContext(), "한국 밖 위치입니다. 카카오맵 배경 표시가 제한될 수 있으며 원본 좌표를 사용합니다.", Toast.LENGTH_LONG).show()
+        }
+        refreshUserMarker()
+        if (isNativeMapReady) kakaoMapInstance?.moveCamera(CameraUpdateFactory.newCenterPosition(LatLng.from(lat, lng), 15))
+        else if (isWebViewReady) binding.mapWebView.evaluateJavascript("setUserLocation($lat, $lng, true);", null)
+        else pendingUserLocation = LatLng.from(lat, lng)
+    }
+
+    private fun refreshUserMarker() {
+        val b = _binding ?: return
+        val previous = currentUserFix
+        val location = if (previous == null) null else LocationTracker.freshLocation(requireContext())
+            ?.takeIf { it.elapsedRealtimeNanos >= previous.elapsedRealtimeNanos } ?: previous
+        currentUserFix = location
+        val manager = context?.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+        val valid = location != null && hasLocationPermission() && (manager == null || LocationManagerCompat.isLocationEnabled(manager)) &&
+            LocationTracker.snapshotOf(location).latitude != null
+        val layer = kakaoMapInstance?.labelManager?.layer
+        myLocationLabel?.let { layer?.remove(it) }
+        myLocationLabel = null
+        if (!valid) {
+            currentUserFix = null; pendingUserLocation = null
+            if (isWebViewReady) b.mapWebView.evaluateJavascript("clearUserLocation();", null)
+            return
+        }
+        val fix = location!!
+        if (isNativeMapReady && layer != null) {
+            myLocationLabel = layer.addLabel(LabelOptions.from(LatLng.from(fix.latitude, fix.longitude))
+                .setStyles(LabelStyles.from(LabelStyle.from(R.drawable.ic_marker_my_location))))
         } else if (isWebViewReady) {
-            binding.mapWebView.evaluateJavascript("moveCamera($lat, $lng, 4);", null)
+            b.mapWebView.evaluateJavascript("setUserLocation(${fix.latitude}, ${fix.longitude}, false);", null)
+        }
+    }
+
+    private fun selectLocalRecord(record: MapRecord) {
+        if (_binding == null) return
+        showEventDetail(record)
+        if (record.hasCoordinates) {
+            if (isNativeMapReady) kakaoMapInstance?.moveCamera(CameraUpdateFactory.newCenterPosition(LatLng.from(record.latitude!!, record.longitude!!), 16))
+            else if (isWebViewReady) binding.mapWebView.evaluateJavascript("moveCamera(${record.latitude}, ${record.longitude}, 4);", null)
         }
     }
 
@@ -373,144 +524,99 @@ class MapFragment : Fragment() {
         }
     }
 
-    private fun showEventDetail(event: DrowsyEvent) {
+    private fun showEventDetail(event: MapRecord) {
         val b = _binding ?: return
         b.cardMarkerDetail.visibility = View.VISIBLE
-
-        val (badgeBg, stageColor, stageTitle, statusDesc, descColor) = when (event.drowsy_level) {
-            3 -> Tuple5(
-                R.drawable.bg_badge_stage3,
-                R.color.stage_3,
-                "3단계 위험 감지",
-                "고위험 졸음 발생",
-                R.color.status_danger
-            )
-            2 -> Tuple5(
-                R.drawable.bg_badge_stage2,
-                R.color.stage_2,
-                "2단계 경고 감지",
-                "주의 필요 상태",
-                R.color.status_warn
-            )
-            else -> Tuple5(
-                R.drawable.bg_badge_stage1,
-                R.color.stage_1,
-                "1단계 주의 감지",
-                "가벼운 피로 징후",
-                R.color.status_warn
-            )
-        }
-
-        b.tvDetailStageBadge.setBackgroundResource(badgeBg)
-        b.tvDetailStageBadge.setTextColor(ContextCompat.getColor(requireContext(), stageColor))
-        b.tvDetailStageBadge.text = stageTitle
-
-        val formattedTime = event.timestamp.replace("T", " ").take(19)
-        b.tvDetailTime.text = formattedTime
-
-        val lat = event.latitude ?: 0.0
-        val lng = event.longitude ?: 0.0
-        b.tvDetailCoords.text = String.format(Locale.US, "위도: %.4f · 경도: %.4f", lat, lng)
-
-        b.tvDetailStatusDesc.text = statusDesc
-        b.tvDetailStatusDesc.setTextColor(ContextCompat.getColor(requireContext(), descColor))
+        val color = when (event.stage) { 3 -> R.color.stage_3; 2 -> R.color.stage_2; else -> R.color.stage_1 }
+        b.tvDetailStageBadge.text = "${event.stage}단계 감지"
+        b.tvDetailStageBadge.setTextColor(ContextCompat.getColor(requireContext(), color))
+        b.tvDetailTime.text = "${event.timeLabel()} ${event.receiptText()}"
+        b.tvDetailCoords.text = event.coordinatesText()
+        b.tvDetailStatusDesc.text = if (event.id.startsWith("DEMO-")) "시연용 가상 기록" else if (event.isLocal) "로컬 기록" else "서버 기록"
+        b.tvDetailMetrics.text = if (event.isLocal) "EAR ${event.ear ?: "없음"} · 예측 점수 ${event.predictionScore ?: "없음"}"
+            else "EAR·예측 점수: 서버 리포트에서 미제공"
     }
 
-    // ─────────────────────────────────────────
-    // 6. 서버 리포트 데이터 조회 및 마커 표출
-    // ─────────────────────────────────────────
     private fun loadMapReportData() {
         val b = _binding ?: return
-        val apiDateStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(selectedCalendar.time)
-
+        loadJob?.cancel()
+        val account = sessionManager.getDetectionAccountKey()
+        val all = isAllMode
+        val serverMode = showServerRecords
+        val dateString = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(selectedCalendar.time)
+        val auth = sessionManager.getAuthHeader()
+        val day = selectedCalendar.clone() as Calendar
+        day.set(Calendar.HOUR_OF_DAY, 0); day.set(Calendar.MINUTE, 0); day.set(Calendar.SECOND, 0); day.set(Calendar.MILLISECOND, 0)
+        val from = day.timeInMillis
+        day.add(Calendar.DAY_OF_MONTH, 1)
+        val until = day.timeInMillis
+        bindLocalRecords(emptyList())
         b.progressMapLoading.visibility = View.VISIBLE
         b.cardMarkerDetail.visibility = View.GONE
-
-        viewLifecycleOwner.lifecycleScope.launch {
+        loadJob = viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val api = RetrofitClient.apiService(requireContext())
-                val response = api.getReportByDate(
-                    RetrofitClient.authHeader(token),
-                    apiDateStr
-                )
-                bindReportData(response)
-            } catch (e: HttpException) {
-                if (e.code() == 401) {
-                    handleSessionExpired()
-                } else if (e.code() == 404) {
-                    bindEmptyData()
-                } else {
-                    Log.e(TAG, "HTTP 오류", e)
-                    bindEmptyData()
-                    Toast.makeText(requireContext(), ApiErrorMessage.fromHttpException(e), Toast.LENGTH_SHORT).show()
+                val records = when {
+                    account == null -> emptyList()
+                    serverMode -> ServerMapRecords.load(RetrofitClient.apiService(requireContext()), auth,
+                        if (all) null else dateString)
+                    else -> LocalDetectionStore.get(requireContext())
+                        .query(account, if (all) null else from, if (all) null else until).map(MapRecord::fromLocal)
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "데이터 조회 오류", e)
-                bindEmptyData()
-            } finally {
-                _binding?.progressMapLoading?.visibility = View.GONE
+                if (_binding == null || sessionManager.getDetectionAccountKey() != account) return@launch
+                bindLocalRecords(records)
+            } catch (e: CancellationException) { throw e }
+            catch (e: HttpException) {
+                if (sessionManager.getDetectionAccountKey() != account) return@launch
+                if (e.code() == 401) handleSessionExpired()
+                else if (e.code() == 404) bindLocalRecords(emptyList())
+                else Toast.makeText(context, ApiErrorMessage.fromHttpException(e), Toast.LENGTH_LONG).show()
             }
+            catch (e: Exception) {
+                Log.e(TAG, "로컬 기록 조회 실패", e)
+                Toast.makeText(context, if (serverMode) "서버 기록을 읽지 못했습니다. 연결 상태를 확인하세요." else "로컬 기록을 읽지 못했습니다.", Toast.LENGTH_LONG).show()
+            } finally { _binding?.progressMapLoading?.visibility = View.GONE }
         }
     }
 
-    private fun bindEmptyData() {
-        val empty = ReportByDateResponse(
-            date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(selectedCalendar.time),
-            session_count = 0,
-            safety_score = 100,
-            grade = "safe",
-            total_drowsy_count = 0,
-            level1_count = 0,
-            level2_count = 0,
-            level3_count = 0,
-            most_dangerous_time = null,
-            chart_data = emptyList(),
-            events = emptyList()
-        )
-        bindReportData(empty)
-    }
-
-    private fun bindReportData(data: ReportByDateResponse) {
+    private fun bindLocalRecords(records: List<MapRecord>) {
         val b = _binding ?: return
-
-        // 1) 상단 통계 요약 갱신
-        b.tvTotalCount.text = "총 ${data.total_drowsy_count}건 감지: "
-        b.badgeStage1.text = "🟡 ${data.level1_count}"
-        b.badgeStage2.text = "🟠 ${data.level2_count}"
-        b.badgeStage3.text = "🔴 ${data.level3_count}"
-
-        // 2) 유효 위경도 이벤트 필터링
-        locationEvents = data.events.filter { it.latitude != null && it.longitude != null }
-
-        if (locationEvents.isEmpty()) {
-            b.cardEmptyNotice.visibility = View.VISIBLE
-            if (isNativeMapReady && kakaoMapInstance != null) {
-                clearNativeMarkers(kakaoMapInstance!!)
-                val defaultLat = LocationTracker.currentLatitude ?: 37.402056
-                val defaultLng = LocationTracker.currentLongitude ?: 127.108212
-                kakaoMapInstance?.moveCamera(CameraUpdateFactory.newCenterPosition(LatLng.from(defaultLat, defaultLng), 14))
-            } else if (isWebViewReady) {
-                b.mapWebView.evaluateJavascript("clearMarkers();", null)
-            }
-        } else {
-            b.cardEmptyNotice.visibility = View.GONE
-            if (isNativeMapReady && kakaoMapInstance != null) {
-                displayMarkersOnNativeMap(kakaoMapInstance!!)
-                focusAllMarkersOnNativeMap(kakaoMapInstance!!)
-            } else if (isWebViewReady) {
-                displayMarkersOnWebView()
-            }
-        }
+        allLocalRecords = records
+        locationEvents = records.filter { it.hasCoordinates }
+        val source = if (showServerRecords) "서버" else "로컬"
+        b.tvTotalCount.text = "$source ${records.size}건: "
+        b.badgeStage1.text = "🟡 ${records.count { it.stage == 1 }}"
+        b.badgeStage2.text = "🟠 ${records.count { it.stage == 2 }}"
+        b.badgeStage3.text = "🔴 ${records.count { it.stage == 3 }}"
+        val timeSource = if (showServerRecords) "서버 기록 시각" else "앱 수신 시각"
+        b.btnLocalRecords.text = "$source 목록 ${records.size}건 · 위치 없음 ${records.size - locationEvents.size}건 · $timeSource"
+        b.cardEmptyNotice.visibility = if (locationEvents.isEmpty()) View.VISIBLE else View.GONE
+        if (isNativeMapReady && kakaoMapInstance != null) {
+            displayMarkersOnNativeMap(kakaoMapInstance!!)
+            focusAllMarkersOnNativeMap(kakaoMapInstance!!)
+        } else if (isWebViewReady) displayMarkersOnWebView()
+        refreshUserMarker()
     }
+
+    /** Carries sleep-report date/source through the existing bottom-tab navigation. */
+    fun applyRecordSelection(date: String, serverRecords: Boolean) {
+        val parsed = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(date) ?: return
+        selectedCalendar.time = parsed
+        isAllMode = false
+        showServerRecords = serverRecords
+        _binding?.spinnerRecordSource?.setSelection(if (serverRecords) 1 else 0)
+        if (_binding != null) { updateFilterUI(); loadMapReportData() }
+    }
+
+
 
     // ─────────────────────────────────────────
     // 네이티브 마커 처리
     // ─────────────────────────────────────────
     private fun clearNativeMarkers(map: KakaoMap) {
-        markerEventMap.clear()
         val labelManager = map.labelManager ?: return
         val layer = labelManager.layer ?: return
-        layer.removeAll()
+        markerEventMap.keys.toList().forEach { layer.remove(it) }
+        markerEventMap.clear()
     }
 
     private fun displayMarkersOnNativeMap(map: KakaoMap) {
@@ -524,7 +630,7 @@ class MapFragment : Fragment() {
             val lat = event.latitude ?: return@forEach
             val lng = event.longitude ?: return@forEach
 
-            val markerRes = when (event.drowsy_level) {
+            val markerRes = when (event.stage) {
                 3 -> R.drawable.ic_marker_stage3
                 2 -> R.drawable.ic_marker_stage2
                 else -> R.drawable.ic_marker_stage1
@@ -543,20 +649,11 @@ class MapFragment : Fragment() {
     private fun focusAllMarkersOnNativeMap(map: KakaoMap) {
         if (locationEvents.isEmpty()) return
 
-        var sumLat = 0.0
-        var sumLng = 0.0
-        locationEvents.forEach {
-            sumLat += (it.latitude ?: 0.0)
-            sumLng += (it.longitude ?: 0.0)
-        }
-
-        val centerLat = sumLat / locationEvents.size
-        val centerLng = sumLng / locationEvents.size
-
-        val cameraUpdate = CameraUpdateFactory.newCenterPosition(
-            LatLng.from(centerLat, centerLng),
-            14
-        )
+        val points = locationEvents.map { LatLng.from(it.latitude!!, it.longitude!!) }.toTypedArray()
+        val topControl = _binding?.cardTopControl?.bottom ?: 0
+        val mapHeight = _binding?.mapView?.height ?: 0
+        val padding = (topControl + 24).coerceAtMost(mapHeight / 3).coerceAtLeast(80)
+        val cameraUpdate = CameraUpdateFactory.fitMapPoints(points, padding, 16)
         map.moveCamera(cameraUpdate)
     }
 
@@ -566,17 +663,21 @@ class MapFragment : Fragment() {
     private fun displayMarkersOnWebView() {
         val b = _binding ?: return
         b.mapWebView.evaluateJavascript("clearMarkers();", null)
-
-        locationEvents.forEach { event ->
-            val lat = event.latitude ?: return@forEach
-            val lng = event.longitude ?: return@forEach
-            val time = event.timestamp.substringAfter("T").take(5)
-            val js = "addMarker($lat, $lng, ${event.drowsy_level}, '$time');"
-            b.mapWebView.evaluateJavascript(js, null)
-        }
-
-        b.mapWebView.evaluateJavascript("fitBounds();", null)
+        locationEvents.forEach { b.mapWebView.evaluateJavascript(it.markerJavascript(), null) }
+        if (locationEvents.isNotEmpty()) focusAllMarkersOnWebView()
+        refreshUserMarker()
     }
+
+    private fun focusAllMarkersOnWebView() {
+        val b = _binding ?: return
+        b.cardTopControl.post {
+            if (_binding !== b || !isWebViewReady || locationEvents.isEmpty()) return@post
+            val topPx = b.cardTopControl.bottom
+            b.mapWebView.evaluateJavascript("fitBounds(Math.ceil($topPx / (window.devicePixelRatio || 1)) + 24, 76, 64, 24);", null)
+        }
+    }
+
+
 
     private fun handleSessionExpired() {
         if (_binding == null) return
@@ -604,6 +705,20 @@ class MapFragment : Fragment() {
     }
 
     override fun onDestroyView() {
+        locationCancellation?.cancel()
+        locationCancellation = null
+        isFetchingLocation = false
+        loadJob?.cancel()
+        isWebViewReady = false
+        isNativeMapReady = false
+        isUsingWebViewFallback = false
+        kakaoMapInstance = null
+        markerEventMap.clear()
+        myLocationLabel = null
+        allLocalRecords = emptyList()
+        locationEvents = emptyList()
+
+
         _binding?.mapView?.finish()
         _binding?.mapWebView?.destroy()
         _binding = null

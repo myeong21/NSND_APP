@@ -48,40 +48,59 @@
             android:orientation="vertical"
             android:padding="14dp">
 
-            <!-- 날짜 선택 칩 / 바 -->
+            <!-- 필터 토글 바 (전체 기록 vs 날짜 선택) -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
+                <!-- 전체 기록 토글 버튼 -->
+                <TextView
+                    android:id="@+id/btnFilterAll"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:background="@drawable/bg_filter_pill_active"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:paddingHorizontal="14dp"
+                    android:text="🌐 전체 기록"
+                    android:textColor="@color/white"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <!-- 날짜 선택 토글 버튼 -->
                 <LinearLayout
-                    android:id="@+id/btnDateSelector"
+                    android:id="@+id/btnFilterDate"
                     android:layout_width="0dp"
                     android:layout_height="36dp"
+                    android:layout_marginStart="8dp"
                     android:layout_weight="1"
-                    android:background="@drawable/bg_card_pill"
+                    android:background="@drawable/bg_filter_pill_inactive"
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center_vertical"
-                    android:paddingHorizontal="12dp">
+                    android:paddingHorizontal="10dp">
 
                     <ImageView
-                        android:layout_width="18dp"
-                        android:layout_height="18dp"
+                        android:id="@+id/ivCalendarIcon"
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
                         android:contentDescription="달력"
                         android:src="@drawable/ic_calendar"
-                        android:tint="@color/accent_primary" />
+                        android:tint="@color/text_secondary" />
 
                     <TextView
                         android:id="@+id/tvMapDate"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:fontFamily="sans-serif-medium"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp"
-                        tools:text="2026년 9월 20일 (오늘)" />
+                        android:layout_marginStart="6dp"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:text="날짜별 선택"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
                 </LinearLayout>
 
                 <ImageButton
@@ -153,6 +172,23 @@
                     android:textColor="@color/stage_3"
                     android:textSize="11sp" />
             </LinearLayout>
+            <TextView
+                android:id="@+id/btnLocalRecords"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:paddingVertical="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:text="로컬 기록 목록 · 앱 결과 수신 시각 기준"
+                android:textColor="@color/accent_primary"
+                android:textSize="12sp" />
+            <androidx.appcompat.widget.AppCompatSpinner
+                android:id="@+id/spinnerRecordSource"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:entries="@array/map_record_sources"
+                android:contentDescription="지도 기록 출처 선택" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
@@ -178,7 +214,7 @@
             android:layout_height="wrap_content"
             android:paddingHorizontal="16dp"
             android:paddingVertical="8dp"
-            android:text="선택한 날짜에 기록된 위치 데이터가 없습니다."
+            android:text="선택한 출처에 표시할 좌표가 없습니다. 기록 목록에서 확인하세요."
             android:textColor="@color/text_secondary"
             android:textSize="12sp" />
     </com.google.android.material.card.MaterialCardView>
@@ -337,6 +373,13 @@
                     android:textSize="12sp"
                     tools:text="주의 필요" />
             </LinearLayout>
+            <TextView
+                android:id="@+id/tvDetailMetrics"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 

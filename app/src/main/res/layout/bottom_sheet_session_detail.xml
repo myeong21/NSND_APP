@@ -280,6 +280,22 @@
                         tools:text="감지된 이벤트 1건의 위치를 표시합니다." />
 
                     <!-- 카카오맵 뷰 -->
+                    <androidx.appcompat.widget.AppCompatSpinner
+                        android:id="@+id/spinnerRecordSource"
+                        android:layout_width="match_parent"
+                        android:layout_height="40dp"
+                        android:entries="@array/map_record_sources"
+                        android:contentDescription="지도 기록 출처 선택" />
+                    <TextView
+                        android:id="@+id/btnSessionLocalRecords"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingVertical="10dp"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:text="로컬 기록 목록 보기"
+                        android:textColor="@color/accent_primary"
+                        android:textSize="12sp" />
                     <FrameLayout
                         android:layout_width="match_parent"
                         android:layout_height="200dp"

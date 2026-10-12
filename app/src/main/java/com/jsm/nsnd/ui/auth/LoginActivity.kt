@@ -35,28 +35,19 @@ class LoginActivity : AppCompatActivity() {
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
-        val missing = missingRuntimePermissions()
-        if (missing.isEmpty()) {
-            checkFullScreenAlertPermission()
-        } else {
-            showRuntimePermissionRequiredDialog(missing)
-        }
+        continueStartup()
     }
 
     private val appSettingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
-        startRequiredPermissionFlow()
+        continueStartup()
     }
 
     private val fullScreenSettingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
-        if (canUseFullScreenAlert()) {
-            continueStartup()
-        } else {
-            showFullScreenPermissionRequiredDialog()
-        }
+        continueStartup()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -147,11 +138,7 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun checkFullScreenAlertPermission() {
-        if (canUseFullScreenAlert()) {
-            continueStartup()
-        } else {
-            showFullScreenPermissionRequiredDialog()
-        }
+        continueStartup()
     }
 
     private fun canUseFullScreenAlert(): Boolean {

@@ -61,7 +61,7 @@
         <service
             android:name=".service.DetectionForegroundService"
             android:exported="false"
-            android:foregroundServiceType="specialUse">
+            android:foregroundServiceType="specialUse|location">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="driver_drowsiness_safety_monitoring" />

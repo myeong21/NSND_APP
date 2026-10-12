@@ -112,6 +112,11 @@ class HomeFragment : Fragment() {
             val coarse = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
             if (fine || coarse) {
                 LocationTracker.startTracking(requireContext())
+                if (drivingState == DrivingState.DETECTING && currentSessionId > 0) {
+                    startDetectionService(currentSessionId)
+                }
+            } else {
+                Toast.makeText(context, "위치 권한이 없어 감지 기록은 위치 없이 저장됩니다.", Toast.LENGTH_LONG).show()
             }
         }
 
@@ -225,6 +230,7 @@ class HomeFragment : Fragment() {
 
     override fun onDestroyView() {
         stopTimer()
+        LocationTracker.onDistanceChangedListener = null
         _binding = null
         super.onDestroyView()
     }
@@ -551,7 +557,8 @@ class HomeFragment : Fragment() {
             if (json.optBoolean("ping", false)) return
 
             val stage = json.optInt("drowsy_level", 0)
-            val ear = json.optDouble("ear", Double.NaN)
+            if (json.has("error") || !json.has("drowsy_level")) return
+            val ear = json.optDouble("ear_value", Double.NaN)
 
             Handler(Looper.getMainLooper()).post {
                 val b = _binding ?: return@post
