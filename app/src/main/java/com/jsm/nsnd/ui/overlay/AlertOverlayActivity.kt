@@ -1,5 +1,12 @@
 package com.jsm.nsnd.ui.overlay
 
+import android.Manifest
+import android.animation.ValueAnimator
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.graphics.drawable.GradientDrawable
 import android.view.View
@@ -16,15 +23,58 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.os.SystemClock
+import android.telephony.SmsManager
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import com.jsm.nsnd.data.local.DetectionMessageParser
+import com.jsm.nsnd.data.session.SessionManager
+import com.jsm.nsnd.service.DetectionForegroundService
+import com.jsm.nsnd.ui.contact.ContactLocalStore
 
 class AlertOverlayActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityAlertOverlayBinding
     private var mediaPlayer: MediaPlayer? = null
     private val handler = Handler(Looper.getMainLooper())
+    private var currentStage = 0
+    private var alertSessionId = -1
+    private var smsHandled = false
+    private var dismissAvailableAt = 0L
+    private var receiverRegistered = false
+
+    private val smsPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) sendEmergencySms()
+            else Toast.makeText(this, "SMS 권한이 없어 긴급 메시지를 발송할 수 없습니다.", Toast.LENGTH_LONG).show()
+        }
+
+    private val detectionReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                DetectionForegroundService.ACTION_DETECTION_EVENT -> {
+                    if (intent.getIntExtra(DetectionForegroundService.EXTRA_SESSION_ID, -1) != alertSessionId) return
+                    val sample = intent.getStringExtra(DetectionForegroundService.EXTRA_PAYLOAD)
+                        ?.let(DetectionMessageParser::parse) ?: return
+                    updateStage(sample.stage)
+                }
+                DetectionForegroundService.ACTION_CONNECTION_STATE -> {
+                    if (intent.getIntExtra(DetectionForegroundService.EXTRA_SESSION_ID, -1) != alertSessionId) return
+                    when (intent.getStringExtra(DetectionForegroundService.EXTRA_STATE)) {
+                        DetectionForegroundService.STATE_AUTH_EXPIRED,
+                        DetectionForegroundService.STATE_SESSION_ENDED,
+                        DetectionForegroundService.STATE_STOPPED -> dismissAlert()
+                    }
+                }
+            }
+        }
+    }
 
     companion object {
         const val EXTRA_STAGE = "extra_stage"
+        const val EXTRA_SMS_HANDLED = "extra_sms_handled"
+        @Volatile private var activeAlertCount = 0
+        val isOpen: Boolean get() = activeAlertCount > 0
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -32,14 +82,64 @@ class AlertOverlayActivity : AppCompatActivity() {
         binding = ActivityAlertOverlayBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // TODO: 젯슨 나노에서 수신한 실제 수면 단계로 교체
-        val stage = intent.getIntExtra(EXTRA_STAGE, 1).coerceIn(1, 3)
+        activeAlertCount++
+        alertSessionId = intent.getIntExtra(DetectionForegroundService.EXTRA_SESSION_ID,
+            SessionManager(this).getActiveSessionId())
+        smsHandled = savedInstanceState?.getBoolean("sms_handled")
+            ?: intent.getBooleanExtra(EXTRA_SMS_HANDLED, false)
+        dismissAvailableAt = savedInstanceState?.getLong("dismiss_available_at")
+            ?: (SystemClock.elapsedRealtime() + 3000)
+        ContextCompat.registerReceiver(this, detectionReceiver, IntentFilter().apply {
+            addAction(DetectionForegroundService.ACTION_DETECTION_EVENT)
+            addAction(DetectionForegroundService.ACTION_CONNECTION_STATE)
+        }, ContextCompat.RECEIVER_NOT_EXPORTED)
+        receiverRegistered = true
+        updateStage(savedInstanceState?.getInt("stage") ?: intent.getIntExtra(EXTRA_STAGE, 1))
+        setupDismissButton()
+    }
 
+    override fun onResume() {
+        super.onResume()
+        // Replay the latest sample if it arrived while this activity was being created.
+        DetectionForegroundService.latestDetection?.let { latest ->
+            if (latest.sessionId == alertSessionId &&
+                latest.account == SessionManager(this).getDetectionAccountKey()) {
+                updateStage(latest.stage)
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        smsHandled = smsHandled || intent.getBooleanExtra(EXTRA_SMS_HANDLED, false)
+        updateStage(intent.getIntExtra(EXTRA_STAGE, currentStage))
+    }
+
+    private fun updateStage(stage: Int) {
+        if (isFinishing || stage !in 0..3) return
+        if (stage == 0) {
+            currentStage = 0
+            dismissAlert()
+            return
+        }
+        if (stage == currentStage) return
+        currentStage = stage
         setupStageDisplay(stage)
         setupStageIndicator(stage)
         startAnimations(stage)
         startPhysicalAlert(stage)
-        setupDismissButton()
+        if (stage == 3 && !smsHandled) {
+            smsHandled = true
+            requestEmergencySms()
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putInt("stage", currentStage)
+        outState.putBoolean("sms_handled", smsHandled)
+        outState.putLong("dismiss_available_at", dismissAvailableAt)
+        super.onSaveInstanceState(outState)
     }
 
     // ─────────────────────────────────────────
@@ -118,9 +218,17 @@ class AlertOverlayActivity : AppCompatActivity() {
     // 애니메이션 시작
     // ─────────────────────────────────────────
     private fun startAnimations(stage: Int) {
+        if (!ValueAnimator.areAnimatorsEnabled()) {
+            binding.ivRotatingRing.clearAnimation()
+            binding.viewFlash.clearAnimation()
+            binding.viewFlash.visibility = View.GONE
+            return
+        }
         // 링 회전 애니메이션
-        val rotateAnim = AnimationUtils.loadAnimation(this, R.anim.rotate_ring)
-        binding.ivRotatingRing.startAnimation(rotateAnim)
+        if (binding.ivRotatingRing.animation == null) {
+            val rotateAnim = AnimationUtils.loadAnimation(this, R.anim.rotate_ring)
+            binding.ivRotatingRing.startAnimation(rotateAnim)
+        }
 
         // 2단계 이상이면 배경 깜빡임 추가
         if (stage >= 2) {
@@ -129,8 +237,13 @@ class AlertOverlayActivity : AppCompatActivity() {
             binding.viewFlash.setBackgroundColor(
                 withAlpha(ContextCompat.getColor(this, R.color.alert_red), flashAlpha)
             )
-            val flashAnim = AnimationUtils.loadAnimation(this, R.anim.flash_bg)
-            binding.viewFlash.startAnimation(flashAnim)
+            if (binding.viewFlash.animation == null) {
+                val flashAnim = AnimationUtils.loadAnimation(this, R.anim.flash_bg)
+                binding.viewFlash.startAnimation(flashAnim)
+            }
+        } else {
+            binding.viewFlash.clearAnimation()
+            binding.viewFlash.visibility = View.GONE
         }
     }
 
@@ -149,9 +262,11 @@ class AlertOverlayActivity : AppCompatActivity() {
     private fun startPhysicalAlert(stage: Int) {
         val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        mediaPlayer = MediaPlayer.create(this, alarmUri)?.apply {
-            isLooping = true
-            start()
+        if (mediaPlayer == null) {
+            mediaPlayer = MediaPlayer.create(this, alarmUri)?.apply {
+                isLooping = true
+                start()
+            }
         }
 
         val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -165,7 +280,31 @@ class AlertOverlayActivity : AppCompatActivity() {
             2 -> longArrayOf(0, 400, 250, 600, 350)
             else -> longArrayOf(0, 700, 200, 900, 200, 1100)
         }
+        vibrator.cancel()
         vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0))
+    }
+
+    private fun requestEmergencySms() {
+        if (ContactLocalStore.load(this).isEmpty()) {
+            Toast.makeText(this, "등록된 긴급 연락처가 없어 SMS를 발송하지 못했습니다.", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED) {
+            sendEmergencySms()
+        } else {
+            smsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
+        }
+    }
+
+    private fun sendEmergencySms() {
+        runCatching {
+            val manager = SmsManager.getDefault()
+            ContactLocalStore.load(this).forEach { contact ->
+                manager.sendTextMessage(contact.phone, null, contact.message, null, null)
+            }
+        }.onFailure {
+            Toast.makeText(this, "긴급 SMS를 발송하지 못했습니다.", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun stopPhysicalAlert() {
@@ -187,21 +326,27 @@ class AlertOverlayActivity : AppCompatActivity() {
     // 확인 버튼
     // ─────────────────────────────────────────
     private fun setupDismissButton() {
-        binding.btnDismiss.visibility = View.INVISIBLE
-
-        handler.postDelayed({
-            binding.btnDismiss.visibility = View.VISIBLE
-        }, 3000)
+        val remaining = (dismissAvailableAt - SystemClock.elapsedRealtime()).coerceAtLeast(0)
+        binding.btnDismiss.visibility = if (remaining == 0L) View.VISIBLE else View.INVISIBLE
+        if (remaining > 0) handler.postDelayed({ binding.btnDismiss.visibility = View.VISIBLE }, remaining)
 
         binding.btnDismiss.setOnClickListener {
-            binding.ivRotatingRing.clearAnimation()
-            binding.viewFlash.clearAnimation()
-            stopPhysicalAlert()
-            finish()
+            dismissAlert()
         }
     }
 
+    private fun dismissAlert() {
+        setResult(RESULT_OK, Intent().putExtra(EXTRA_STAGE, currentStage))
+        handler.removeCallbacksAndMessages(null)
+        binding.ivRotatingRing.clearAnimation()
+        binding.viewFlash.clearAnimation()
+        stopPhysicalAlert()
+        finish()
+    }
+
     override fun onDestroy() {
+        if (receiverRegistered) unregisterReceiver(detectionReceiver)
+        activeAlertCount--
         handler.removeCallbacksAndMessages(null)
         stopPhysicalAlert()
         super.onDestroy()

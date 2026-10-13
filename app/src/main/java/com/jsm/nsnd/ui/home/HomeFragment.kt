@@ -10,7 +10,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.telephony.SmsManager
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -120,29 +119,17 @@ class HomeFragment : Fragment() {
             }
         }
 
-    // SMS 권한 요청
-    private val smsPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) {
-                sendEmergencySms()
-            } else {
-                Toast.makeText(
-                    requireContext(),
-                    "SMS 권한이 없어 긴급 메시지를 발송할 수 없습니다.",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-        }
-
     // 알림 권한 요청 (Android 13+)
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     // 경보 오버레이 런처
     private val alertLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             isAlertActive = false
             lastAlertDismissedAt = System.currentTimeMillis()
+            lastAlertedStage = result.data?.getIntExtra(AlertOverlayActivity.EXTRA_STAGE, lastAlertedStage)
+                ?: lastAlertedStage
         }
 
     // 감지 백그라운드 브로드캐스트 리시버
@@ -795,37 +782,9 @@ class HomeFragment : Fragment() {
     private fun triggerAlert(stage: Int) {
         val intent = Intent(requireContext(), AlertOverlayActivity::class.java).apply {
             putExtra(AlertOverlayActivity.EXTRA_STAGE, stage)
+            putExtra(DetectionForegroundService.EXTRA_SESSION_ID, currentSessionId)
         }
         alertLauncher.launch(intent)
-
-        if (stage >= 3) {
-            requestSmsAndSend()
-        }
-    }
-
-    private fun requestSmsAndSend() {
-        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.SEND_SMS)
-            == PackageManager.PERMISSION_GRANTED
-        ) {
-            sendEmergencySms()
-        } else {
-            smsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
-        }
-    }
-
-    private fun sendEmergencySms() {
-        if (contactList.isEmpty()) {
-            Toast.makeText(requireContext(), "등록된 긴급 연락처가 없어 SMS를 발송하지 못했습니다.", Toast.LENGTH_LONG).show()
-            return
-        }
-        try {
-            val smsManager = SmsManager.getDefault()
-            contactList.forEach { contact ->
-                smsManager.sendTextMessage(contact.phone, null, contact.message, null, null)
-            }
-        } catch (e: Exception) {
-            Log.e("HomeFragment", "SMS send error", e)
-        }
     }
 
     private fun startDetectionService(sessionId: Int) {

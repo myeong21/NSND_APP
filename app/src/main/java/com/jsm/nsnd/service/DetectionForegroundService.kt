@@ -93,6 +93,7 @@ class DetectionForegroundService : Service() {
                     return START_NOT_STICKY
                 }
                 if (sessionId != requestedSession || ownerAccount != account) {
+                    latestDetection = null
                     connectionGeneration++
                     webSocket?.cancel()
                     webSocket = null
@@ -149,13 +150,15 @@ class DetectionForegroundService : Service() {
                 }
                 val sample = DetectionMessageParser.parse(text) ?: return
                 val stage = sample.stage
+                latestDetection = LiveDetection(account, connectedSession, stage)
                 pendingRecords.trySend(PendingRecord(account, userId, connectedSession, sample, receivedAtMs,
                     LocationTracker.snapshot(this@DetectionForegroundService)))
                 sendBroadcast(Intent(ACTION_DETECTION_EVENT).apply {
                     setPackage(packageName)
                     putExtra(EXTRA_PAYLOAD, text)
+                    putExtra(EXTRA_SESSION_ID, connectedSession)
                 })
-                if (!isAppForeground() && stage > 0) showBackgroundAlert(stage)
+                if (!isAppForeground() && !AlertOverlayActivity.isOpen && stage > 0) showBackgroundAlert(stage)
                 if (stage == 0) lastBackgroundAlertStage = 0
             }
 
@@ -213,7 +216,9 @@ class DetectionForegroundService : Service() {
 
         val fullScreenIntent = Intent(this, AlertOverlayActivity::class.java).apply {
             putExtra(AlertOverlayActivity.EXTRA_STAGE, stage)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_SESSION_ID, sessionId)
+            putExtra(AlertOverlayActivity.EXTRA_SMS_HANDLED, stage >= 3)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
         val pendingIntent = PendingIntent.getActivity(
             this,
@@ -248,6 +253,8 @@ class DetectionForegroundService : Service() {
 
     private fun stopConnection() {
         shouldRun = false
+        latestDetection = null
+        broadcastConnection(STATE_STOPPED, null)
         connectionGeneration++
         handler.removeCallbacksAndMessages(null)
         webSocket?.close(1000, "감지 서비스 종료")
@@ -274,6 +281,8 @@ class DetectionForegroundService : Service() {
 
     override fun onDestroy() {
         shouldRun = false
+        latestDetection = null
+        broadcastConnection(STATE_STOPPED, null)
         connectionGeneration++
         handler.removeCallbacksAndMessages(null)
         webSocket?.cancel()
@@ -288,6 +297,7 @@ class DetectionForegroundService : Service() {
             setPackage(packageName)
             putExtra(EXTRA_STATE, state)
             putExtra(EXTRA_MESSAGE, message)
+            putExtra(EXTRA_SESSION_ID, sessionId)
         })
     }
 
@@ -335,6 +345,9 @@ class DetectionForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
+        data class LiveDetection(val account: String, val sessionId: Int, val stage: Int)
+        @Volatile var latestDetection: LiveDetection? = null
+            private set
         const val ACTION_START = "com.jsm.nsnd.action.START_DETECTION_SERVICE"
         const val ACTION_STOP = "com.jsm.nsnd.action.STOP_DETECTION_SERVICE"
         const val ACTION_DETECTION_EVENT = "com.jsm.nsnd.action.DETECTION_EVENT"
@@ -347,6 +360,7 @@ class DetectionForegroundService : Service() {
         const val STATE_RECONNECTING = "reconnecting"
         const val STATE_AUTH_EXPIRED = "auth_expired"
         const val STATE_SESSION_ENDED = "session_ended"
+        const val STATE_STOPPED = "stopped"
         private const val STATUS_CHANNEL_ID = "nsnd_detection_status"
         private const val ALERT_CHANNEL_ID = "nsnd_drowsy_alert"
         private const val NOTIFICATION_ID = 4100
