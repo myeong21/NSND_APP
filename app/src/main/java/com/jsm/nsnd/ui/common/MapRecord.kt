@@ -15,7 +15,7 @@ data class MapRecord(
         latitude.isFinite() && longitude.isFinite() && latitude in -90.0..90.0 && longitude in -180.0..180.0
     val ear: Double? get() = local?.ear
     val predictionScore: Double? get() = local?.predictionScore
-    fun receiptText(): String = local?.receiptText() ?: serverTimestamp.orEmpty().replace("T", " ")
+    fun receiptText(): String = local?.receiptText() ?: ServerTime.display(serverTimestamp.orEmpty(), "yyyy.MM.dd HH:mm:ss")
     fun timeLabel(): String = if (isLocal) "앱 수신" else "서버 기록 시각"
     fun coordinatesText(): String = local?.coordinatesText() ?: if (hasCoordinates)
         "서버 저장 좌표: $latitude, $longitude" else "위치 없음 · 서버에 저장된 좌표 없음"

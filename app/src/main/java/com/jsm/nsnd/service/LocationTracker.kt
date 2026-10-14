@@ -91,16 +91,19 @@ object LocationTracker {
                     currentLatitude = location.latitude
                     currentLongitude = location.longitude
 
+                    val accuracy = if (location.hasAccuracy()) location.accuracy else null
                     val prev = lastLocation
                     if (prev != null) {
                         val distance = prev.distanceTo(location)
-                        // 비정상적인 GPS 점프 필터링 (예: 50m 초과 순간이동 및 오차 100m 초과 배제)
-                        if (distance > 0.5f && location.accuracy <= 40f) {
+                        val elapsedMs = (location.elapsedRealtimeNanos - prev.elapsedRealtimeNanos) / 1_000_000L
+                        if (DetectionPolicy.usableDistance(distance, elapsedMs,
+                                if (prev.hasAccuracy()) prev.accuracy else null, accuracy)) {
                             totalDistanceMeters += distance
                             onDistanceChangedListener?.invoke(getDistanceKm())
                         }
                     }
-                    lastLocation = location
+                    // Bad-accuracy fixes must not become the next distance baseline.
+                    if (accuracy != null && accuracy in 0f..40f) lastLocation = location
                 }
             }
         }

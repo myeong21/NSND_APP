@@ -43,6 +43,71 @@ import java.util.Calendar
 /** A real service/WebSocket/UI test against an in-emulator fixture, never the user's server. */
 @RunWith(AndroidJUnit4::class)
 class DetectionServiceIntegrationTest {
+    @Test fun v6InvalidObservationsAreNotSavedAndCameraErrorsDoNotReconnect(): Unit = runBlocking {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val prefs = context.getSharedPreferences("nsnd_prefs", 0)
+        val oldServer = prefs.getString("server_ip", null)
+        val oldToken = prefs.getString("access_token", null)
+        val oldSession = prefs.getInt("active_session_id", -1)
+        val oldAnimatorScale = android.provider.Settings.Global.getString(context.contentResolver, "animator_duration_scale") ?: "1"
+        val field = LocalDetectionStore::class.java.getDeclaredField("instance").apply { isAccessible = true }
+        val previousStore = field.get(null)
+        val store = LocalDetectionStore.isolated(context, "isolated_v6_detection.db")
+        val fixture = FixtureServer()
+        var scenario: ActivityScenario<com.jsm.nsnd.ui.overlay.AlertOverlayActivity>? = null
+        try {
+            instrumentation.uiAutomation.executeShellCommand("settings put global animator_duration_scale 0").close()
+            android.os.SystemClock.sleep(250)
+            field.set(null, store)
+            val payload = Base64.encodeToString("{\"sub\":\"99111\"}".toByteArray(), Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+            prefs.edit().putString("server_ip", "127.0.0.1").putString("access_token", "test.$payload.fixture")
+                .putInt("active_session_id", 55111).commit()
+            val account = SessionManager(context).getDetectionAccountKey()!!
+            fixture.start()
+            scenario = ActivityScenario.launch(Intent(context, com.jsm.nsnd.ui.overlay.AlertOverlayActivity::class.java).apply {
+                putExtra(com.jsm.nsnd.ui.overlay.AlertOverlayActivity.EXTRA_STAGE, 1)
+                putExtra(com.jsm.nsnd.ui.overlay.AlertOverlayActivity.EXTRA_SMS_HANDLED, true)
+                putExtra(DetectionForegroundService.EXTRA_SESSION_ID, 55111)
+            })
+            ContextCompat.startForegroundService(context, Intent(context, DetectionForegroundService::class.java).apply {
+                action = DetectionForegroundService.ACTION_START
+                putExtra(DetectionForegroundService.EXTRA_SESSION_ID, 55111)
+            })
+            await { fixture.connections.get() == 1 }
+            fixture.send("{\"drowsy_level\":0,\"state\":\"CALIBRATING\",\"observation_valid\":false,\"calibration_progress\":0.5}")
+            await { DetectionForegroundService.latestDetection?.sample?.state == "CALIBRATING" }
+            fixture.send("{\"drowsy_level\":3,\"state\":\"NO_FACE\",\"observation_valid\":false,\"alert_active\":false}")
+            await { DetectionForegroundService.latestDetection?.sample?.state == "NO_FACE" }
+            assertTrue(store.query(account).isEmpty())
+            assertFalse(DetectionForegroundService.latestDetection!!.alertRequired)
+            fixture.send("{\"drowsy_level\":1,\"ear_value\":0.21}")
+            await { runBlocking { store.query(account).size == 1 } }
+            fixture.send("{\"state\":\"ERROR\",\"error\":\"fixture camera unavailable\"}")
+            await { DetectionForegroundService.latestFailure == "fixture camera unavailable" }
+            android.os.SystemClock.sleep(2500)
+            assertEquals(1, fixture.connections.get())
+            scenario.onActivity {
+                assertFalse(it.isFinishing)
+                assertTrue(it.findViewById<android.widget.TextView>(R.id.tvAlertDescription).text.contains("fixture camera unavailable"))
+            }
+        } finally {
+            context.stopService(Intent(context, DetectionForegroundService::class.java))
+            await { DetectionForegroundService.latestDetection == null }
+            scenario?.close()
+            fixture.close()
+            field.set(null, previousStore)
+            store.close()
+            context.deleteDatabase("isolated_v6_detection.db")
+            val editor = prefs.edit()
+            if (oldServer == null) editor.remove("server_ip") else editor.putString("server_ip", oldServer)
+            if (oldToken == null) editor.remove("access_token") else editor.putString("access_token", oldToken)
+            if (oldSession == -1) editor.remove("active_session_id") else editor.putInt("active_session_id", oldSession)
+            editor.commit()
+            instrumentation.uiAutomation.executeShellCommand("settings put global animator_duration_scale $oldAnimatorScale").close()
+        }
+    }
+
     @Test fun serviceStoresOutsideHomeReconnectsAndMapTabReturnsToSleep() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val prefs = context.getSharedPreferences("nsnd_prefs", 0)
@@ -80,9 +145,9 @@ class DetectionServiceIntegrationTest {
             }
             await { fixture.connections.get() >= 1 }
             fixture.send("{\"ping\":true}")
-            fixture.send("{\"error\":\"camera failure\"}")
             fixture.send("{\"drowsy_level\":1,\"ear_value\":0.21,\"pred_score\":0.65}")
             await { runBlocking { store.query(account).size == 1 } }
+            dismissFixtureAlert()
             assertEquals(.21, store.query(account).first().ear!!, .0001)
             assertNull(store.query(account).first().latitude)
             fixture.disconnect()
@@ -91,6 +156,7 @@ class DetectionServiceIntegrationTest {
             fixture.send("{\"drowsy_level\":0,\"ear_value\":0.3,\"pred_score\":0.1}")
             fixture.send("{\"drowsy_level\":2,\"ear_value\":0.19,\"pred_score\":0.8}")
             await { runBlocking { store.query(account).size == 2 } }
+            dismissFixtureAlert()
             assertEquals(setOf(1, 2), store.query(account).map { it.stage }.toSet())
 
             // Add A/B plus overlapping B records to the isolated fixture store, separately from live GPS.
@@ -168,7 +234,10 @@ class DetectionServiceIntegrationTest {
             chooseDate(2026, Calendar.SEPTEMBER, 20)
             await { javascript(scenario, "markers.length") == "3" }
             javascript(scenario, "kakao.maps.event.trigger(markers[0], 'click'); true;")
-            onView(withText(containsString("서버 기록 시각: 2026-09-20 14:15:30"))).check(matches(isDisplayed()))
+            val localServerTime = java.time.LocalDateTime.parse("2026-09-20T14:15:30")
+                .atOffset(java.time.ZoneOffset.UTC).atZoneSameInstant(java.time.ZoneId.systemDefault())
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm:ss"))
+            onView(withText(containsString("서버 기록 시각: $localServerTime"))).check(matches(isDisplayed()))
             onView(withId(android.R.id.button1)).perform(click())
             scenario.onActivity { it.findViewById<android.widget.Spinner>(R.id.spinnerRecordSource).setSelection(0) }
             await { javascript(scenario, "markers.length") == "0" }
@@ -217,6 +286,7 @@ class DetectionServiceIntegrationTest {
             fixture.send("{\"drowsy_level\":0}")
             fixture.send("{\"drowsy_level\":1,\"ear_value\":0.2,\"pred_score\":0.7}")
             await { runBlocking { store.query(account, sessionId = 55101).size == 3 } }
+            dismissFixtureAlert()
             assertEquals(6, store.query(account).size)
         } finally {
             context.stopService(Intent(context, DetectionForegroundService::class.java))
@@ -240,6 +310,17 @@ class DetectionServiceIntegrationTest {
             editor.commit()
             automation.executeShellCommand("settings put secure location_mode $previousLocationMode").close()
         }
+    }
+
+    private fun dismissFixtureAlert() {
+        await { com.jsm.nsnd.ui.overlay.AlertOverlayActivity.isOpen }
+        DetectionForegroundService.markAlarmStopped(55101)
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance()
+                .getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED)
+                .filterIsInstance<com.jsm.nsnd.ui.overlay.AlertOverlayActivity>().forEach { it.finish() }
+        }
+        await { !com.jsm.nsnd.ui.overlay.AlertOverlayActivity.isOpen }
     }
 
     private fun controller(activity: MainActivity) = (activity.supportFragmentManager.findFragmentById(R.id.navHostFragment) as NavHostFragment).navController
@@ -273,7 +354,10 @@ class DetectionServiceIntegrationTest {
     }
 
     private class FixtureServer {
-        private val server = ServerSocket(8000)
+        private val server = ServerSocket().apply {
+            reuseAddress = true
+            bind(java.net.InetSocketAddress("127.0.0.1", 8000))
+        }
         private val executor = Executors.newCachedThreadPool()
         @Volatile private var socket: Socket? = null
         val connections = AtomicInteger()

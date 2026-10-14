@@ -44,12 +44,14 @@ class SignUpActivity : AppCompatActivity() {
             return
         }
 
+        binding.btnSignup.isEnabled = false
         ApiClient.authApi(this).register(RegisterRequest(username, name, password))
             .enqueue(object : Callback<UserResponse> {
                 override fun onResponse(
                     call: Call<UserResponse>,
                     response: Response<UserResponse>
                 ) {
+                    binding.btnSignup.isEnabled = true
                     if (response.isSuccessful) {
                         Toast.makeText(
                             this@SignUpActivity,
@@ -67,6 +69,7 @@ class SignUpActivity : AppCompatActivity() {
                 }
 
                 override fun onFailure(call: Call<UserResponse>, t: Throwable) {
+                    binding.btnSignup.isEnabled = true
                     Toast.makeText(
                         this@SignUpActivity,
                         ApiErrorMessage.fromThrowable(t, "회원가입"),

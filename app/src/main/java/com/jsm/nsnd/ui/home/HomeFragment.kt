@@ -26,8 +26,11 @@ import com.jsm.nsnd.data.api.ApiClient
 import com.jsm.nsnd.data.api.ContactDto
 import com.jsm.nsnd.data.session.ServerConfig
 import com.jsm.nsnd.data.session.SessionManager
+import com.jsm.nsnd.data.local.DetectionMessageParser
+import com.jsm.nsnd.data.local.DetectionSample
 import com.jsm.nsnd.databinding.FragmentHomeBinding
 import com.jsm.nsnd.network.RetrofitClient
+import com.jsm.nsnd.network.confirmDetectionStopped
 import com.jsm.nsnd.network.model.DetectionRequest
 import com.jsm.nsnd.network.model.HealthResponse
 import com.jsm.nsnd.network.model.SessionEndRequest
@@ -71,10 +74,6 @@ class HomeFragment : Fragment() {
         CHECKING, READY, NOT_READY, OFFLINE
     }
 
-    companion object {
-        private const val ALERT_COOLDOWN_MS = 10_000L
-    }
-
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
 
@@ -84,15 +83,19 @@ class HomeFragment : Fragment() {
 
     private var healthResponse: HealthResponse? = null
     private var healthCheckInProgress = false
+    private var sessionActionInProgress = false
+    private var sessionActionGeneration = 0
+
+    private fun beginSessionAction(): Boolean {
+        if (sessionActionInProgress) return false
+        sessionActionInProgress = true
+        sessionActionGeneration++
+        return true
+    }
 
     private val eventItems = mutableListOf<EventItem>()
     private lateinit var eventAdapter: EventAdapter
     private var lastEventStage = 0
-
-    // 경보 중복 방지 플래그
-    private var lastAlertedStage = 0
-    private var isAlertActive = false
-    private var lastAlertDismissedAt = 0L
 
     // 주행 시간 타이머
     private var timerJob: Job? = null
@@ -123,22 +126,13 @@ class HomeFragment : Fragment() {
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
-    // 경보 오버레이 런처
-    private val alertLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            isAlertActive = false
-            lastAlertDismissedAt = System.currentTimeMillis()
-            lastAlertedStage = result.data?.getIntExtra(AlertOverlayActivity.EXTRA_STAGE, lastAlertedStage)
-                ?: lastAlertedStage
-        }
-
     // 감지 백그라운드 브로드캐스트 리시버
     private val detectionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 DetectionForegroundService.ACTION_DETECTION_EVENT -> {
                     intent.getStringExtra(DetectionForegroundService.EXTRA_PAYLOAD)
-                        ?.let(::handleWebSocketMessage)
+                        ?.let { handleWebSocketMessage(it) }
                 }
                 DetectionForegroundService.ACTION_CONNECTION_STATE -> {
                     when (intent.getStringExtra(DetectionForegroundService.EXTRA_STATE)) {
@@ -150,6 +144,17 @@ class HomeFragment : Fragment() {
                         DetectionForegroundService.STATE_AUTH_EXPIRED -> handleSessionExpired()
                         DetectionForegroundService.STATE_SESSION_ENDED -> {
                             handleServerSessionEnded()
+                        }
+                        DetectionForegroundService.STATE_ERROR -> {
+                            transitionTo(DrivingState.SESSION_ACTIVE)
+                            renderDetectionError(intent.getStringExtra(DetectionForegroundService.EXTRA_MESSAGE)
+                                ?: "카메라 또는 추론 오류가 발생했습니다.")
+                        }
+                        DetectionForegroundService.STATE_STOPPED -> {
+                            if (drivingState == DrivingState.DETECTING) transitionTo(DrivingState.SESSION_ACTIVE)
+                        }
+                        DetectionForegroundService.STATE_RECONNECTING -> {
+                            _binding?.tvLiveStatusText?.text = "감지 결과 연결을 다시 시도하고 있습니다."
                         }
                     }
                 }
@@ -212,6 +217,11 @@ class HomeFragment : Fragment() {
         super.onResume()
         if (_binding != null) {
             checkServerStatus()
+            DetectionForegroundService.latestDetection?.takeIf {
+                it.account == sessionManager.getDetectionAccountKey() &&
+                    it.sessionId == sessionManager.getActiveSessionId()
+            }?.let { handleWebSocketMessage(it.payload) }
+            DetectionForegroundService.latestFailure?.let(::renderDetectionError)
         }
     }
 
@@ -285,6 +295,7 @@ class HomeFragment : Fragment() {
     // 1-1. 운전 세션 시작 (POST /sessions/start)
     // ─────────────────────────────────────────
     private fun startDrivingSession() {
+        if (!beginSessionAction()) return
         binding.btnStart.isEnabled = false
         binding.btnStart.text = "세션 시작 중…"
 
@@ -307,11 +318,13 @@ class HomeFragment : Fragment() {
                 currentSessionId = resp.session_id
                 sessionManager.saveActiveSessionId(currentSessionId)
 
-                sessionStartTimeMs = System.currentTimeMillis()
+                sessionStartTimeMs = com.jsm.nsnd.ui.common.ServerTime.millis(resp.started_at) ?: System.currentTimeMillis()
                 startTimer()
 
                 transitionTo(DrivingState.SESSION_ACTIVE)
                 Toast.makeText(requireContext(), "운전 세션(#$currentSessionId)이 시작되었습니다.", Toast.LENGTH_SHORT).show()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: HttpException) {
                 if (e.code() == 401) {
                     handleSessionExpired()
@@ -324,6 +337,7 @@ class HomeFragment : Fragment() {
                 Toast.makeText(requireContext(), ApiErrorMessage.fromThrowable(e, "운전 시작"), Toast.LENGTH_LONG).show()
                 transitionTo(DrivingState.IDLE)
             } finally {
+                sessionActionInProgress = false
                 if (_binding != null) {
                     binding.btnStart.isEnabled = true
                     binding.btnStart.text = "운전 시작"
@@ -337,20 +351,25 @@ class HomeFragment : Fragment() {
     // ─────────────────────────────────────────
     private fun startDrowsinessDetection() {
         if (currentSessionId <= 0) return
+        if (!beginSessionAction()) return
         binding.btnStartDetection.isEnabled = false
         binding.btnStartDetection.text = "감지 연결 중…"
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 val api = RetrofitClient.apiService(requireContext())
-                api.startDetection(
+                val response = api.startDetection(
                     RetrofitClient.authHeader(token),
                     DetectionRequest(currentSessionId)
                 )
                 startDetectionService(currentSessionId)
                 loadRecentEvents(currentSessionId)
                 transitionTo(DrivingState.DETECTING)
-                Toast.makeText(requireContext(), "실시간 졸음 감지가 시작되었습니다.", Toast.LENGTH_SHORT).show()
+                binding.tvLiveStatusText.text = response.message
+                binding.tvStageStatus.text = "개인 보정 준비 중"
+                Toast.makeText(requireContext(), response.message, Toast.LENGTH_LONG).show()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: HttpException) {
                 if (e.code() == 401) {
                     handleSessionExpired()
@@ -361,6 +380,7 @@ class HomeFragment : Fragment() {
                 Log.e("HomeFragment", "startDrowsinessDetection error", e)
                 Toast.makeText(requireContext(), ApiErrorMessage.fromThrowable(e, "졸음 감지 시작"), Toast.LENGTH_LONG).show()
             } finally {
+                sessionActionInProgress = false
                 if (_binding != null) {
                     binding.btnStartDetection.isEnabled = true
                     binding.btnStartDetection.text = "졸음 감지 시작"
@@ -374,24 +394,33 @@ class HomeFragment : Fragment() {
     // ─────────────────────────────────────────
     private fun pauseDrowsinessDetection() {
         if (currentSessionId <= 0) return
+        if (!beginSessionAction()) return
+        val pausingSessionId = currentSessionId
         binding.btnPauseDetection.isEnabled = false
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 val api = RetrofitClient.apiService(requireContext())
-                runCatching {
-                    api.stopDetection(
-                        RetrofitClient.authHeader(token),
-                        DetectionRequest(currentSessionId)
-                    )
-                }
+                val auth = RetrofitClient.authHeader(token)
+                confirmDetectionStopped(
+                    stop = { api.stopDetection(auth, DetectionRequest(pausingSessionId)) },
+                    isRunning = { api.getDetectionStatus(auth, pausingSessionId).is_running }
+                )
+                if (currentSessionId != pausingSessionId) return@launch
                 stopDetectionService()
                 updateSleepStage(0)
                 transitionTo(DrivingState.SESSION_ACTIVE)
                 Toast.makeText(requireContext(), "졸음 감지를 일시정지했습니다.", Toast.LENGTH_SHORT).show()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: HttpException) {
+                if (e.code() == 401) handleSessionExpired()
+                else Toast.makeText(context, ApiErrorMessage.fromHttpException(e), Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
                 Log.e("HomeFragment", "pauseDrowsinessDetection error", e)
+                Toast.makeText(context, ApiErrorMessage.fromThrowable(e, "감지 일시정지"), Toast.LENGTH_LONG).show()
             } finally {
+                sessionActionInProgress = false
                 if (_binding != null) {
                     binding.btnPauseDetection.isEnabled = true
                 }
@@ -409,6 +438,7 @@ class HomeFragment : Fragment() {
         }
 
         val endingSessionId = currentSessionId
+        if (!beginSessionAction()) return
         binding.btnStop.isEnabled = false
         binding.btnEndSessionActive.isEnabled = false
 
@@ -416,26 +446,13 @@ class HomeFragment : Fragment() {
             try {
                 val api = RetrofitClient.apiService(requireContext())
 
-                // 감지 중이었으면 감지 먼저 중지
-                if (drivingState == DrivingState.DETECTING) {
-                    runCatching {
-                        api.stopDetection(
-                            RetrofitClient.authHeader(token),
-                            DetectionRequest(endingSessionId)
-                        )
-                    }
-                    stopDetectionService()
-                }
-
-                // 위치 추적 종료 및 최종 거리 확인
-                val distanceKm = LocationTracker.stopTracking()
-
-                // 세션 종료 API 호출
+                // The server's end endpoint also stops its camera. Preserve monitoring until success.
                 api.endSession(
                     RetrofitClient.authHeader(token),
                     SessionEndRequest(endingSessionId)
                 )
-
+                stopDetectionService()
+                val distanceKm = LocationTracker.stopTracking()
                 currentSessionId = -1
                 sessionManager.clearActiveSessionId()
                 stopTimer()
@@ -447,6 +464,8 @@ class HomeFragment : Fragment() {
                     "운전 세션이 종료되었습니다. (주행 거리: ${String.format(Locale.US, "%.2f km", distanceKm)})",
                     Toast.LENGTH_LONG
                 ).show()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: HttpException) {
                 if (e.code() == 401) {
                     handleSessionExpired()
@@ -457,6 +476,7 @@ class HomeFragment : Fragment() {
                 Log.e("HomeFragment", "endDrivingSession error", e)
                 Toast.makeText(requireContext(), ApiErrorMessage.fromThrowable(e, "운전 종료"), Toast.LENGTH_LONG).show()
             } finally {
+                sessionActionInProgress = false
                 if (_binding != null) {
                     binding.btnStop.isEnabled = true
                     binding.btnEndSessionActive.isEnabled = true
@@ -543,47 +563,61 @@ class HomeFragment : Fragment() {
             val json = JSONObject(text)
             if (json.optBoolean("ping", false)) return
 
-            val stage = json.optInt("drowsy_level", 0)
-            if (json.has("error") || !json.has("drowsy_level")) return
-            val ear = json.optDouble("ear_value", Double.NaN)
+            if (json.has("error") || json.optString("state") == "ERROR") {
+                renderDetectionError(json.optString("error", "카메라 또는 추론 오류가 발생했습니다."))
+                return
+            }
+            val sample = DetectionMessageParser.parse(text) ?: return
+            val stage = sample.stage
 
             Handler(Looper.getMainLooper()).post {
                 val b = _binding ?: return@post
 
                 updateSleepStage(stage)
+                renderObservation(sample)
 
                 // EAR 지표 표시
-                if (!ear.isNaN()) {
-                    b.tvEarValue.text = String.format(Locale.US, "EAR %.2f", ear)
-                    if (ear < 0.22) {
-                        b.tvEarValue.setTextColor(requireContext().getColor(R.color.status_danger))
-                    } else {
-                        b.tvEarValue.setTextColor(requireContext().getColor(R.color.status_safe))
-                    }
-                }
+                b.tvEarValue.text = sample.ear?.takeIf { sample.observationValid }
+                    ?.let { String.format(Locale.US, "EAR %.2f", it) } ?: "EAR 측정 대기"
+                b.tvEarValue.setTextColor(requireContext().getColor(R.color.text_secondary))
 
-                if (stage > 0 && stage != lastEventStage) {
+                if (sample.observationValid && stage > 0 && stage != lastEventStage) {
                     addRecentEvent(stage)
                     lastEventStage = stage
-                } else if (stage == 0) {
+                } else if (sample.observationValid && stage == 0) {
                     lastEventStage = 0
-                    lastAlertedStage = 0
                 }
 
-                // 위험 경보 트리거
-                if (stage > 0 && !isAlertActive) {
-                    val stageChanged = stage != lastAlertedStage
-                    val cooldownPassed = System.currentTimeMillis() - lastAlertDismissedAt >= ALERT_COOLDOWN_MS
-                    if (stageChanged || cooldownPassed) {
-                        isAlertActive = true
-                        lastAlertedStage = stage
-                        triggerAlert(stage)
-                    }
-                }
+                // 전경 경보는 MainActivity가 모든 탭에서 수신해 표시합니다.
             }
         } catch (e: Exception) {
             Log.e("HomeFragment", "WebSocket message parse error", e)
         }
+    }
+
+    private fun renderObservation(sample: DetectionSample) {
+        val b = _binding ?: return
+        b.tvLiveStatusText.text = sample.statusText()
+        if (!sample.observationValid || sample.state in setOf("WARMING_UP", "DROWSY_PENDING")) {
+            b.tvStageStatus.text = when (sample.state) {
+                "CALIBRATING" -> "개인 보정 중"
+                "WARMING_UP" -> "모델 준비 중"
+                "DROWSY_PENDING" -> "눈 상태 확인 중"
+                else -> "측정 불가"
+            }
+            b.tvStageStatus.setBackgroundResource(R.drawable.bg_badge_warn)
+            b.tvStageStatus.setTextColor(requireContext().getColor(R.color.status_warn))
+        }
+    }
+
+    private fun renderDetectionError(reason: String) {
+        val b = _binding ?: return
+        b.cardDetectingState.visibility = View.VISIBLE
+        b.tvStageStatus.text = "감지 오류"
+        b.tvStageStatus.setBackgroundResource(R.drawable.bg_badge_danger)
+        b.tvStageStatus.setTextColor(requireContext().getColor(R.color.status_danger))
+        b.tvLiveStatusText.text = "$reason\n졸음 감지를 다시 시작해주세요."
+        b.tvEarValue.text = "EAR 측정 중단"
     }
 
     // ─────────────────────────────────────────
@@ -625,20 +659,25 @@ class HomeFragment : Fragment() {
     }
 
     private suspend fun recoverActiveSession(showResultToast: Boolean = false) {
+        if (sessionActionInProgress) return
+        val generation = sessionActionGeneration
+        val account = sessionManager.getDetectionAccountKey()
         val api = RetrofitClient.apiService(requireContext())
         try {
             val current = api.getCurrentSession(RetrofitClient.authHeader(token))
+            val detection = api.getDetectionStatus(
+                RetrofitClient.authHeader(token),
+                current.id
+            )
+            if (sessionActionInProgress || generation != sessionActionGeneration ||
+                account != sessionManager.getDetectionAccountKey()) return
             currentSessionId = current.id
             sessionManager.saveActiveSessionId(currentSessionId)
 
-            val detection = api.getDetectionStatus(
-                RetrofitClient.authHeader(token),
-                currentSessionId
-            )
-
             // 타이머 재개
-            sessionStartTimeMs = System.currentTimeMillis()
+            sessionStartTimeMs = com.jsm.nsnd.ui.common.ServerTime.millis(current.started_at) ?: System.currentTimeMillis()
             startTimer()
+            _binding?.tvDriveDistance?.text = String.format(Locale.US, "%.2f km", LocationTracker.getDistanceKm())
             LocationTracker.startTracking(requireContext())
 
             if (detection.is_running) {
@@ -647,18 +686,30 @@ class HomeFragment : Fragment() {
                 loadRecentEvents(currentSessionId)
             } else {
                 transitionTo(DrivingState.SESSION_ACTIVE)
+                DetectionForegroundService.latestFailure?.let(::renderDetectionError)
             }
 
             if (showResultToast && isAdded) {
                 Toast.makeText(requireContext(), "진행 중인 세션(#$currentSessionId)을 복구했습니다.", Toast.LENGTH_SHORT).show()
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: HttpException) {
+            if (generation != sessionActionGeneration || account != sessionManager.getDetectionAccountKey()) return
             if (e.code() == 404) {
                 currentSessionId = -1
                 sessionManager.clearActiveSessionId()
+                stopTimer()
                 transitionTo(DrivingState.IDLE)
+            } else if (e.code() == 401) {
+                handleSessionExpired()
+            } else {
+                Toast.makeText(context, ApiErrorMessage.fromHttpException(e), Toast.LENGTH_LONG).show()
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            if (showResultToast && _binding != null) {
+                Toast.makeText(context, ApiErrorMessage.fromThrowable(e, "세션 상태 확인"), Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -770,21 +821,13 @@ class HomeFragment : Fragment() {
                 )
                 eventItems.clear()
                 eventItems.addAll(report.events.takeLast(10).reversed().map { event ->
-                    val time = event.timestamp.substringAfter('T', event.timestamp).take(5)
+                    val time = com.jsm.nsnd.ui.common.ServerTime.display(event.timestamp, "HH:mm")
                     EventItem(time, "${event.drowsy_level} 단계 졸음 징후가 감지되었습니다.")
                 })
                 eventAdapter.notifyDataSetChanged()
             } catch (_: Exception) {
             }
         }
-    }
-
-    private fun triggerAlert(stage: Int) {
-        val intent = Intent(requireContext(), AlertOverlayActivity::class.java).apply {
-            putExtra(AlertOverlayActivity.EXTRA_STAGE, stage)
-            putExtra(DetectionForegroundService.EXTRA_SESSION_ID, currentSessionId)
-        }
-        alertLauncher.launch(intent)
     }
 
     private fun startDetectionService(sessionId: Int) {
@@ -858,6 +901,8 @@ class HomeFragment : Fragment() {
     }
 
     private fun refreshEmergencyContacts(cachedContacts: List<ContactItem>) {
+        val account = sessionManager.getDetectionAccountKey()
+        val auth = sessionManager.getAuthHeader()
         ApiClient.contactApi(requireContext()).getContacts(sessionManager.getAuthHeader())
             .enqueue(object : Callback<List<ContactDto>> {
                 override fun onResponse(
@@ -865,16 +910,23 @@ class HomeFragment : Fragment() {
                     response: retrofit2.Response<List<ContactDto>>
                 ) {
                     if (!isAdded || _binding == null) return
+                    if (sessionManager.getDetectionAccountKey() != account || sessionManager.getAuthHeader() != auth) return
                     if (response.code() == 401) {
                         handleSessionExpired()
                         return
                     }
+                    if (!response.isSuccessful) return
                     val serverContacts = response.body() ?: return
                     val serverItems = serverContacts.map {
                         ContactItem(it.id, it.name, it.phone, it.message)
                     }
-                    ContactLocalStore.save(requireContext(), serverItems)
-                    sharedViewModel.contacts.value = serverItems
+                    // Keep pending legacy contacts until ContactFragment completes migration.
+                    if (!ContactLocalStore.isServerMigrationComplete(requireContext()) && cachedContacts.isNotEmpty()) {
+                        sharedViewModel.contacts.value = cachedContacts
+                    } else if (ContactLocalStore.load(requireContext()) == cachedContacts) {
+                        ContactLocalStore.save(requireContext(), serverItems)
+                        sharedViewModel.contacts.value = serverItems
+                    }
                 }
 
                 override fun onFailure(call: Call<List<ContactDto>>, error: Throwable) {

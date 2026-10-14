@@ -190,10 +190,12 @@ class LoginActivity : AppCompatActivity() {
         }
 
         binding.btnLogin.isEnabled = false
+        val requestedServer = ServerConfig.getHttpBaseUrl(this)
         ApiClient.authApi(this).login(LoginRequest(username, password, deviceId()))
             .enqueue(object : Callback<TokenResponse> {
                 override fun onResponse(call: Call<TokenResponse>, response: Response<TokenResponse>) {
                     binding.btnLogin.isEnabled = true
+                    if (ServerConfig.getHttpBaseUrl(this@LoginActivity) != requestedServer) return
                     val body = response.body()
                     if (response.isSuccessful && body != null) {
                         sessionManager.saveToken(body.access_token)
@@ -211,12 +213,16 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun validateSavedLogin() {
+        val requestedServer = ServerConfig.getHttpBaseUrl(this)
+        val requestedToken = sessionManager.getToken()
         ApiClient.authApi(this).me(sessionManager.getAuthHeader())
             .enqueue(object : Callback<com.jsm.nsnd.data.api.UserResponse> {
                 override fun onResponse(
                     call: Call<com.jsm.nsnd.data.api.UserResponse>,
                     response: Response<com.jsm.nsnd.data.api.UserResponse>
                 ) {
+                    if (ServerConfig.getHttpBaseUrl(this@LoginActivity) != requestedServer ||
+                        sessionManager.getToken() != requestedToken) return
                     if (response.isSuccessful) {
                         goMain()
                     } else {

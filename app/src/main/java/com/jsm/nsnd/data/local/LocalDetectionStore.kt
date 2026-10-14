@@ -14,6 +14,7 @@ import java.util.UUID
 class LocalDetectionStore private constructor(context: Context, name: String) :
     SQLiteOpenHelper(context.applicationContext ?: context, name, null, 1) {
     init { setWriteAheadLoggingEnabled(true) }
+    private val retiredAccounts = mutableSetOf<String>()
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""CREATE TABLE local_events (
@@ -38,6 +39,7 @@ class LocalDetectionStore private constructor(context: Context, name: String) :
     fun recordTransition(account: String, userId: Long, sessionId: Int, sample: DetectionSample,
                          receivedAtMs: Long, location: LocationSnapshot): String? {
         require(userId > 0 && sessionId > 0 && account.isNotBlank() && sample.stage in 0..3)
+        if (account in retiredAccounts) return null
         val db = writableDatabase
         var inserted: String? = null
         db.beginTransaction()
@@ -67,6 +69,22 @@ class LocalDetectionStore private constructor(context: Context, name: String) :
         } finally { db.endTransaction() }
         if (inserted != null) revision.value = revision.value + 1
         return inserted
+    }
+
+    suspend fun deleteAccount(account: String) = withContext(Dispatchers.IO) {
+        deleteAccountNow(account)
+    }
+
+    @Synchronized private fun deleteAccountNow(account: String) {
+        retiredAccounts.add(account) // Prevent queued service writes after withdrawal.
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.delete("local_events", "account_key=?", arrayOf(account))
+            db.delete("transition_state", "account_key=?", arrayOf(account))
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+        revision.value = revision.value + 1
     }
 
     suspend fun query(account: String, fromMs: Long? = null, untilMs: Long? = null,

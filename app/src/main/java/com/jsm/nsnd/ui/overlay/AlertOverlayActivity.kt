@@ -23,7 +23,6 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import android.os.SystemClock
 import android.telephony.SmsManager
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,16 +30,26 @@ import com.jsm.nsnd.data.local.DetectionMessageParser
 import com.jsm.nsnd.data.session.SessionManager
 import com.jsm.nsnd.service.DetectionForegroundService
 import com.jsm.nsnd.ui.contact.ContactLocalStore
+import com.jsm.nsnd.data.local.DetectionSample
+import com.jsm.nsnd.network.RetrofitClient
+import com.jsm.nsnd.network.model.DetectionRequest
+import com.jsm.nsnd.ui.common.ApiErrorMessage
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 class AlertOverlayActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityAlertOverlayBinding
     private var mediaPlayer: MediaPlayer? = null
     private val handler = Handler(Looper.getMainLooper())
-    private var currentStage = 0
+    private var currentStage = -1
     private var alertSessionId = -1
     private var smsHandled = false
-    private var dismissAvailableAt = 0L
+    private var audioMuted = false
+    private var riskVersion = 0
+    private var acknowledgementPending = false
+    private var acknowledgementFailure: String? = null
     private var receiverRegistered = false
 
     private val smsPermissionLauncher =
@@ -56,14 +65,20 @@ class AlertOverlayActivity : AppCompatActivity() {
                     if (intent.getIntExtra(DetectionForegroundService.EXTRA_SESSION_ID, -1) != alertSessionId) return
                     val sample = intent.getStringExtra(DetectionForegroundService.EXTRA_PAYLOAD)
                         ?.let(DetectionMessageParser::parse) ?: return
-                    updateStage(sample.stage)
+                    renderSample(sample, intent.getBooleanExtra(DetectionForegroundService.EXTRA_ALERT_REQUIRED, false))
                 }
                 DetectionForegroundService.ACTION_CONNECTION_STATE -> {
                     if (intent.getIntExtra(DetectionForegroundService.EXTRA_SESSION_ID, -1) != alertSessionId) return
                     when (intent.getStringExtra(DetectionForegroundService.EXTRA_STATE)) {
+                        DetectionForegroundService.STATE_ERROR -> {
+                            binding.tvAlertDescription.text =
+                                "${intent.getStringExtra(DetectionForegroundService.EXTRA_MESSAGE)}\n감지를 다시 시작해주세요. 경보음은 직접 중지할 수 있습니다."
+                        }
                         DetectionForegroundService.STATE_AUTH_EXPIRED,
                         DetectionForegroundService.STATE_SESSION_ENDED,
-                        DetectionForegroundService.STATE_STOPPED -> dismissAlert()
+                        DetectionForegroundService.STATE_STOPPED -> {
+                            binding.tvAlertDescription.text = "감지가 종료되었습니다.\n경보음을 멈추려면 ‘경보 중지’를 눌러주세요."
+                        }
                     }
                 }
             }
@@ -87,8 +102,8 @@ class AlertOverlayActivity : AppCompatActivity() {
             SessionManager(this).getActiveSessionId())
         smsHandled = savedInstanceState?.getBoolean("sms_handled")
             ?: intent.getBooleanExtra(EXTRA_SMS_HANDLED, false)
-        dismissAvailableAt = savedInstanceState?.getLong("dismiss_available_at")
-            ?: (SystemClock.elapsedRealtime() + 3000)
+        audioMuted = savedInstanceState?.getBoolean("audio_muted") ?: false
+        acknowledgementFailure = savedInstanceState?.getString("acknowledgement_failure")
         ContextCompat.registerReceiver(this, detectionReceiver, IntentFilter().apply {
             addAction(DetectionForegroundService.ACTION_DETECTION_EVENT)
             addAction(DetectionForegroundService.ACTION_CONNECTION_STATE)
@@ -104,7 +119,7 @@ class AlertOverlayActivity : AppCompatActivity() {
         DetectionForegroundService.latestDetection?.let { latest ->
             if (latest.sessionId == alertSessionId &&
                 latest.account == SessionManager(this).getDetectionAccountKey()) {
-                updateStage(latest.stage)
+                renderSample(latest.sample, latest.alertRequired && audioMuted)
             }
         }
     }
@@ -118,27 +133,55 @@ class AlertOverlayActivity : AppCompatActivity() {
 
     private fun updateStage(stage: Int) {
         if (isFinishing || stage !in 0..3) return
-        if (stage == 0) {
-            currentStage = 0
-            dismissAlert()
-            return
-        }
         if (stage == currentStage) return
+        val previousStage = currentStage
         currentStage = stage
         setupStageDisplay(stage)
         setupStageIndicator(stage)
         startAnimations(stage)
-        startPhysicalAlert(stage)
-        if (stage == 3 && !smsHandled) {
+        if (!audioMuted && previousStage == -1) startPhysicalAlert(stage.coerceAtLeast(1))
+        if (stage == 3 && previousStage == -1 && !audioMuted && !smsHandled) {
             smsHandled = true
             requestEmergencySms()
+        }
+    }
+
+    private fun renderSample(sample: DetectionSample, alertRequired: Boolean) {
+        if (alertRequired) {
+            riskVersion++
+            audioMuted = false
+            acknowledgementFailure = null
+            startPhysicalAlert(sample.stage.coerceAtLeast(1))
+            if (sample.stage == 3 && !smsHandled) {
+                smsHandled = true
+                requestEmergencySms()
+            }
+            binding.btnDismiss.text = getString(R.string.alert_dismiss)
+        }
+        updateStage(sample.stage)
+        // A zero level can remain unchanged while measurement readiness changes.
+        if (sample.stage == 0) setupStageDisplay(0)
+        binding.tvAlertDescription.text = sample.statusText() +
+            (if (audioMuted) "\n경보음은 중지되었습니다." else "\n경보음을 멈추려면 ‘경보 중지’를 눌러주세요.") +
+            acknowledgementFailure?.let { "\n$it\n서버의 회복 확인을 위해 중지 확인을 재시도해주세요." }.orEmpty()
+        if (sample.stage == 0 && (!sample.observationValid || sample.state in setOf("WARMING_UP", "DROWSY_PENDING"))) {
+            binding.tvAlertStage.text = when (sample.state) {
+                "CALIBRATING" -> "개인 보정 중"
+                "WARMING_UP" -> "모델 준비 중"
+                "DROWSY_PENDING" -> "눈 상태 확인 중"
+                else -> "측정 불가"
+            }
+            binding.tvAlertStage.setBackgroundResource(R.drawable.bg_badge_warn)
+            binding.tvAlertStage.setTextColor(ContextCompat.getColor(this, R.color.status_warn))
+            binding.ivWarningIcon.setColorFilter(ContextCompat.getColor(this, R.color.status_warn))
         }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putInt("stage", currentStage)
         outState.putBoolean("sms_handled", smsHandled)
-        outState.putLong("dismiss_available_at", dismissAvailableAt)
+        outState.putBoolean("audio_muted", audioMuted)
+        outState.putString("acknowledgement_failure", acknowledgementFailure)
         super.onSaveInstanceState(outState)
     }
 
@@ -151,6 +194,7 @@ class AlertOverlayActivity : AppCompatActivity() {
         binding.tvAlertStage.setTextColor(stageColor)
         binding.tvAlertStage.setBackgroundResource(
             when (stage) {
+                0 -> R.drawable.bg_badge_safe
                 1 -> R.drawable.bg_badge_stage1
                 2 -> R.drawable.bg_badge_stage2
                 else -> R.drawable.bg_badge_stage3
@@ -160,6 +204,7 @@ class AlertOverlayActivity : AppCompatActivity() {
         // 같은 빨강을 투명도만 높여 위험도가 즉시 읽히도록 한다.
         val dangerRed = ContextCompat.getColor(this, R.color.alert_red)
         val tintAlpha = when (stage) {
+            0 -> 0
             1 -> 18
             2 -> 34
             else -> 54
@@ -167,17 +212,21 @@ class AlertOverlayActivity : AppCompatActivity() {
         binding.viewStageTint.setBackgroundColor(withAlpha(dangerRed, tintAlpha))
 
         when (stage) {
+            0 -> {
+                binding.tvAlertStage.text = "0단계 · 정상 회복"
+                binding.tvAlertDescription.text = "정상 상태로 회복했습니다.\n경보음을 멈추려면 ‘경보 중지’를 눌러주세요."
+            }
             1 -> {
                 binding.tvAlertStage.text = getString(R.string.alert_stage_1)
                 binding.tvAlertDescription.text = "경보음이 울리고 있습니다\n잠시 차를 세우고 휴식을 취하세요"
             }
             2 -> {
                 binding.tvAlertStage.text = getString(R.string.alert_stage_2)
-                binding.tvAlertDescription.text = "강한 경보음과 진동이 작동 중입니다\n즉시 안전한 곳에 정차하세요"
+                binding.tvAlertDescription.text = "경보음과 진동이 작동 중입니다\n즉시 안전한 곳에 정차하세요"
             }
             3 -> {
                 binding.tvAlertStage.text = getString(R.string.alert_stage_3)
-                binding.tvAlertDescription.text = "긴급 연락처로 SMS 발송을 시도했습니다\n즉시 차를 세우세요"
+                binding.tvAlertDescription.text = "위험 졸음이 감지되었습니다\n즉시 안전한 곳에 정차하세요"
             }
         }
     }
@@ -248,6 +297,7 @@ class AlertOverlayActivity : AppCompatActivity() {
     }
 
     private fun stageColor(stage: Int): Int = when (stage) {
+        0 -> R.color.status_safe
         1 -> R.color.stage_1
         2 -> R.color.stage_2
         else -> R.color.stage_3
@@ -326,12 +376,61 @@ class AlertOverlayActivity : AppCompatActivity() {
     // 확인 버튼
     // ─────────────────────────────────────────
     private fun setupDismissButton() {
-        val remaining = (dismissAvailableAt - SystemClock.elapsedRealtime()).coerceAtLeast(0)
-        binding.btnDismiss.visibility = if (remaining == 0L) View.VISIBLE else View.INVISIBLE
-        if (remaining > 0) handler.postDelayed({ binding.btnDismiss.visibility = View.VISIBLE }, remaining)
+        binding.btnDismiss.visibility = View.VISIBLE
+        if (audioMuted) binding.btnDismiss.text = "중지 확인 재시도"
 
         binding.btnDismiss.setOnClickListener {
+            stopAndAcknowledgeAlarm()
+        }
+    }
+
+    private fun stopAndAcknowledgeAlarm() {
+        audioMuted = true
+        stopPhysicalAlert()
+        DetectionForegroundService.markAlarmStopped(alertSessionId)
+        DetectionForegroundService.cancelAlertNotifications(this)
+        if (currentStage !in 2..3 || alertSessionId <= 0 ||
+            SessionManager(this).getActiveSessionId() != alertSessionId) {
             dismissAlert()
+            return
+        }
+        if (acknowledgementPending) return
+        acknowledgementPending = true
+        acknowledgementFailure = null
+        val stoppedRiskVersion = riskVersion
+        binding.btnDismiss.text = "중지 확인 전달 중…"
+        binding.tvAlertDescription.text = "경보음은 중지되었습니다.\n서버에 중지 확인을 전달하고 있습니다."
+        lifecycleScope.launch {
+            try {
+                val response = RetrofitClient.apiService(this@AlertOverlayActivity).acknowledgeAlarm(
+                    RetrofitClient.authHeader(SessionManager(this@AlertOverlayActivity).getToken().orEmpty()),
+                    DetectionRequest(alertSessionId)
+                )
+                check(response.status == "accepted") { "서버에서 중지 확인을 접수하지 못했습니다." }
+                if (audioMuted && riskVersion == stoppedRiskVersion) dismissAlert()
+            } catch (error: HttpException) {
+                // The server may have already recovered or stopped between the button and request.
+                if (error.code() in setOf(404, 409) && audioMuted && riskVersion == stoppedRiskVersion) {
+                    Toast.makeText(this@AlertOverlayActivity, "현재 서버 상태에서는 중지 확인이 필요하지 않습니다.", Toast.LENGTH_LONG).show()
+                    dismissAlert()
+                } else showAcknowledgementFailure(ApiErrorMessage.fromHttpException(error))
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                showAcknowledgementFailure(ApiErrorMessage.fromThrowable(error, "경보 중지 확인"))
+            } finally {
+                acknowledgementPending = false
+                binding.btnDismiss.text = if (audioMuted && !isFinishing) "중지 확인 재시도" else getString(R.string.alert_dismiss)
+            }
+        }
+    }
+
+    private fun showAcknowledgementFailure(message: String) {
+        acknowledgementFailure = message
+        binding.tvAlertDescription.text = if (audioMuted) {
+            "경보음은 중지되었습니다.\n$message\n서버의 회복 확인을 위해 재시도해주세요. 뒤로가기로 화면을 닫을 수도 있습니다."
+        } else {
+            "새로운 위험 경보가 울리고 있습니다.\n$message\n경보를 중지한 뒤 다시 확인해주세요."
         }
     }
 
@@ -353,7 +452,6 @@ class AlertOverlayActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        // 뒤로가기로 경보 화면이 닫히지 않도록 막음
-        // 반드시 확인 버튼으로만 닫을 수 있음
+        if (audioMuted && !acknowledgementPending) dismissAlert()
     }
 }

@@ -3,16 +3,12 @@ package com.jsm.nsnd.data.api
 import android.content.Context
 import com.jsm.nsnd.data.session.ServerConfig
 import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 object ApiClient {
 
     private val client = OkHttpClient.Builder()
-        .addInterceptor(HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
-        })
         .build()
 
     private var cachedRetrofit: Retrofit? = null

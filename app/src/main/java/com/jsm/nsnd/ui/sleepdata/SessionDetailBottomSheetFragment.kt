@@ -144,7 +144,7 @@ class SessionDetailBottomSheetFragment : BottomSheetDialogFragment() {
         val b = _binding ?: return
         b.layoutDetailContent.visibility = View.VISIBLE
 
-        val dateText = data.started_at.replace("T", " ").take(16)
+        val dateText = com.jsm.nsnd.ui.common.ServerTime.display(data.started_at)
         val durationText = "${data.duration_minutes ?: 0}분 주행"
         b.tvDetailSubtitle.text = "서버 통계 · $dateText · $durationText"
 
@@ -178,6 +178,15 @@ class SessionDetailBottomSheetFragment : BottomSheetDialogFragment() {
             "safe" -> "전반적으로 안정적인 주행을 유지했습니다."
             "caution" -> "간헐적인 졸음 징후가 관측되었습니다. 충분한 휴식이 필요합니다."
             else -> "고위험 졸음이 감지되었습니다. 즉시 안전한 장소에서 휴식을 취하세요."
+        }
+
+        if (data.total_drowsy_count == 0) {
+            b.tvDetailScore.text = "--"
+            b.detailSafetyRing.setScore(0, "unknown")
+            b.tvDetailGrade.text = "판정 자료 부족"
+            b.tvDetailGrade.setBackgroundResource(R.drawable.bg_badge_warn)
+            b.tvDetailGrade.setTextColor(ContextCompat.getColor(requireContext(), R.color.status_warn))
+            b.tvDetailSummary.text = "감지 로그가 없어 안전 상태를 판정할 수 없습니다."
         }
 
         // 단계별 통계

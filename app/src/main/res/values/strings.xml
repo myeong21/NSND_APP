@@ -50,8 +50,8 @@
     <string name="alert_title">졸음 감지!</string>
     <string name="alert_stage_1">1단계 경보</string>
     <string name="alert_stage_2">2단계 경보</string>
-    <string name="alert_stage_3">3단계 경보 — 긴급 연락 발송 중</string>
-    <string name="alert_dismiss">확인</string>
+    <string name="alert_stage_3">3단계 경보</string>
+    <string name="alert_dismiss">경보 중지</string>
 
     <!-- 연락 보내기 설정 -->
     <string name="contact_title">연락 보내기 설정</string>

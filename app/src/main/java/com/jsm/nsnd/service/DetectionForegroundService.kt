@@ -23,6 +23,7 @@ import com.jsm.nsnd.data.local.DetectionMessageParser
 import com.jsm.nsnd.data.local.DetectionSample
 import com.jsm.nsnd.data.local.LocalDetectionStore
 import com.jsm.nsnd.data.local.LocationSnapshot
+import com.jsm.nsnd.data.local.DrowsinessAlarmPolicy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
@@ -46,8 +47,6 @@ class DetectionForegroundService : Service() {
     private var sessionId = -1
     @Volatile private var shouldRun = false
     private var retryCount = 0
-    private var lastBackgroundAlertStage = 0
-    private var lastBackgroundAlertAt = 0L
     private var ownerAccount: String? = null
     private var ownerUserId: Long? = null
     @Volatile private var connectionGeneration = 0
@@ -92,8 +91,10 @@ class DetectionForegroundService : Service() {
                     stopSelf()
                     return START_NOT_STICKY
                 }
-                if (sessionId != requestedSession || ownerAccount != account) {
+                if (sessionId != requestedSession || ownerAccount != account || !shouldRun) {
                     latestDetection = null
+                    alarmPolicy = DrowsinessAlarmPolicy()
+                    latestFailure = null
                     connectionGeneration++
                     webSocket?.cancel()
                     webSocket = null
@@ -103,6 +104,7 @@ class DetectionForegroundService : Service() {
                 ownerAccount = account
                 ownerUserId = manager.getUserId()
                 shouldRun = true
+                latestFailure = null
                 startMonitoringForeground()
                 connect()
             }
@@ -148,18 +150,26 @@ class DetectionForegroundService : Service() {
                     handler.post { stopConnection() }
                     return
                 }
+                val json = runCatching { JSONObject(text) }.getOrNull() ?: return
+                if (json.optBoolean("ping")) return
+                if (json.has("error") || json.optString("state") == "ERROR") {
+                    failDetection(json.optString("error", json.optString("message", "카메라 또는 추론 오류가 발생했습니다.")))
+                    return
+                }
                 val sample = DetectionMessageParser.parse(text) ?: return
                 val stage = sample.stage
-                latestDetection = LiveDetection(account, connectedSession, stage)
-                pendingRecords.trySend(PendingRecord(account, userId, connectedSession, sample, receivedAtMs,
-                    LocationTracker.snapshot(this@DetectionForegroundService)))
+                val alertRequired = publishDetection(account, connectedSession, sample, text).alertRequired
+                if (sample.observationValid) {
+                    pendingRecords.trySend(PendingRecord(account, userId, connectedSession, sample, receivedAtMs,
+                        LocationTracker.snapshot(this@DetectionForegroundService)))
+                }
                 sendBroadcast(Intent(ACTION_DETECTION_EVENT).apply {
                     setPackage(packageName)
                     putExtra(EXTRA_PAYLOAD, text)
                     putExtra(EXTRA_SESSION_ID, connectedSession)
+                    putExtra(EXTRA_ALERT_REQUIRED, alertRequired)
                 })
-                if (!isAppForeground() && !AlertOverlayActivity.isOpen && stage > 0) showBackgroundAlert(stage)
-                if (stage == 0) lastBackgroundAlertStage = 0
+                if (!isAppForeground() && !AlertOverlayActivity.isOpen && alertRequired) showBackgroundAlert(stage)
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
@@ -178,15 +188,17 @@ class DetectionForegroundService : Service() {
                 if (generation != connectionGeneration || !shouldRun) return
                 this@DetectionForegroundService.webSocket = null
                 when (code) {
+                    1011 -> failDetection("카메라 또는 추론 오류입니다. 졸음 감지를 다시 시작해주세요.")
+                    1000 -> stopConnection()
                     4001 -> {
                         SessionManager(this@DetectionForegroundService).clear()
                         broadcastConnection(STATE_AUTH_EXPIRED, reason)
                         stopConnection()
                     }
                     4004 -> {
-                        SessionManager(this@DetectionForegroundService).clearActiveSessionId()
-                        broadcastConnection(STATE_SESSION_ENDED, reason)
-                        stopConnection()
+                        // An inactive detector does not mean the driving session ended.
+                        // Keep its ID; HomeFragment will reconcile /sessions/current.
+                        failDetection(reason.ifBlank { "감지가 실행 중이 아닙니다. 다시 시작해주세요." })
                     }
                     else -> if (shouldRun) scheduleReconnect(reason)
                 }
@@ -209,11 +221,6 @@ class DetectionForegroundService : Service() {
     }
 
     private fun showBackgroundAlert(stage: Int) {
-        val now = System.currentTimeMillis()
-        if (stage == lastBackgroundAlertStage && now - lastBackgroundAlertAt < ALERT_COOLDOWN_MS) return
-        lastBackgroundAlertStage = stage
-        lastBackgroundAlertAt = now
-
         val fullScreenIntent = Intent(this, AlertOverlayActivity::class.java).apply {
             putExtra(AlertOverlayActivity.EXTRA_STAGE, stage)
             putExtra(EXTRA_SESSION_ID, sessionId)
@@ -251,9 +258,24 @@ class DetectionForegroundService : Service() {
         }
     }
 
+    private fun failDetection(reason: String) {
+        shouldRun = false
+        connectionGeneration++
+        handler.removeCallbacksAndMessages(null)
+        webSocket?.cancel()
+        webSocket = null
+        latestFailure = reason
+        latestDetection = latestDetection?.copy(alertRequired = false)
+        // Keep any already-playing local alarm audible until the user stops it.
+        broadcastConnection(STATE_ERROR, reason)
+        updateStatusNotification("감지 오류 · 앱에서 다시 시작해주세요")
+        LocationTracker.stopTracking("detection")
+    }
+
     private fun stopConnection() {
         shouldRun = false
         latestDetection = null
+        latestFailure = null
         broadcastConnection(STATE_STOPPED, null)
         connectionGeneration++
         handler.removeCallbacksAndMessages(null)
@@ -282,6 +304,7 @@ class DetectionForegroundService : Service() {
     override fun onDestroy() {
         shouldRun = false
         latestDetection = null
+        latestFailure = null
         broadcastConnection(STATE_STOPPED, null)
         connectionGeneration++
         handler.removeCallbacksAndMessages(null)
@@ -345,14 +368,40 @@ class DetectionForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
-        data class LiveDetection(val account: String, val sessionId: Int, val stage: Int)
+        data class LiveDetection(val account: String, val sessionId: Int,
+            val sample: DetectionSample, val payload: String, val alertRequired: Boolean) {
+            val stage: Int get() = sample.stage
+        }
         @Volatile var latestDetection: LiveDetection? = null
             private set
+        @Volatile var latestFailure: String? = null
+            private set
+        @Volatile private var alarmPolicy = DrowsinessAlarmPolicy()
+
+        @Synchronized fun markAlarmStopped(sessionId: Int) {
+            latestDetection?.takeIf { it.sessionId == sessionId }?.let {
+                alarmPolicy.acknowledge()
+                latestDetection = it.copy(alertRequired = false)
+            }
+        }
+
+        @Synchronized private fun publishDetection(account: String, sessionId: Int,
+            sample: DetectionSample, payload: String): LiveDetection {
+            return LiveDetection(account, sessionId, sample, payload, alarmPolicy.accept(sample)).also {
+                latestDetection = it
+            }
+        }
+
+        fun cancelAlertNotifications(context: Context) {
+            val manager = context.getSystemService(NotificationManager::class.java)
+            for (stage in 1..3) manager.cancel(ALERT_NOTIFICATION_ID + stage)
+        }
         const val ACTION_START = "com.jsm.nsnd.action.START_DETECTION_SERVICE"
         const val ACTION_STOP = "com.jsm.nsnd.action.STOP_DETECTION_SERVICE"
         const val ACTION_DETECTION_EVENT = "com.jsm.nsnd.action.DETECTION_EVENT"
         const val ACTION_CONNECTION_STATE = "com.jsm.nsnd.action.DETECTION_CONNECTION"
         const val EXTRA_SESSION_ID = "session_id"
+        const val EXTRA_ALERT_REQUIRED = "alert_required"
         const val EXTRA_PAYLOAD = "payload"
         const val EXTRA_STATE = "state"
         const val EXTRA_MESSAGE = "message"
@@ -361,10 +410,10 @@ class DetectionForegroundService : Service() {
         const val STATE_AUTH_EXPIRED = "auth_expired"
         const val STATE_SESSION_ENDED = "session_ended"
         const val STATE_STOPPED = "stopped"
+        const val STATE_ERROR = "error"
         private const val STATUS_CHANNEL_ID = "nsnd_detection_status"
         private const val ALERT_CHANNEL_ID = "nsnd_drowsy_alert"
         private const val NOTIFICATION_ID = 4100
         private const val ALERT_NOTIFICATION_ID = 4200
-        private const val ALERT_COOLDOWN_MS = 10_000L
     }
 }

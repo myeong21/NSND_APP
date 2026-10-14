@@ -13,7 +13,8 @@ data class SessionHistoryRow(
     val server: ReportHistoryItem? = null,
     val local: List<com.jsm.nsnd.data.local.LocalDetectionRecord> = emptyList()
 ) {
-    val timestamp: String get() = server?.started_at ?: local.minByOrNull { it.receivedAtMs }?.let { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date(it.receivedAtMs)) }.orEmpty()
+    val timestamp: Long get() = server?.started_at?.let(com.jsm.nsnd.ui.common.ServerTime::millis)
+        ?: local.minOfOrNull { it.receivedAtMs } ?: 0L
 }
 
 class SessionHistoryAdapter(
@@ -52,7 +53,7 @@ class SessionHistoryAdapter(
         val context = holder.itemView.context
 
         // 날짜 파싱 (예: 2026-09-18T14:30:00 -> 2026-09-18 14:30)
-        val dateText = item.started_at.replace("T", " ").take(16)
+        val dateText = com.jsm.nsnd.ui.common.ServerTime.display(item.started_at)
         holder.binding.tvSessionDate.text = "$dateText · 서버"
 
         // 안전 점수 및 등급
@@ -77,6 +78,12 @@ class SessionHistoryAdapter(
                 holder.binding.tvSafetyBadge.setBackgroundResource(R.drawable.bg_badge_safe)
                 holder.binding.tvSafetyBadge.setTextColor(ContextCompat.getColor(context, R.color.status_safe))
             }
+        }
+
+        if (item.total_drowsy_count == 0) {
+            holder.binding.tvSafetyBadge.text = "판정 자료 부족"
+            holder.binding.tvSafetyBadge.setBackgroundResource(R.drawable.bg_badge_warn)
+            holder.binding.tvSafetyBadge.setTextColor(ContextCompat.getColor(context, R.color.status_warn))
         }
 
         // 주행 시간

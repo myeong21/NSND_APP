@@ -375,6 +375,14 @@ class SleepDataFragment : Fragment() {
             }
         }
 
+        if (data.total_drowsy_count == 0) {
+            b.tvSafetyScore.text = "--"
+            b.safetyScoreRing.setScore(0, "unknown")
+            b.tvSafetyGrade.text = "판정 자료 부족"
+            b.tvSafetyGrade.setBackgroundResource(R.drawable.bg_badge_warn)
+            b.tvSafetyGrade.setTextColor(ContextCompat.getColor(requireContext(), R.color.status_warn))
+        }
+
         // 2. 통계 횟수
         b.tvTotalDrowsy.text = "${data.total_drowsy_count}회"
         b.tvLevel1Count.text = "${data.level1_count}회"
