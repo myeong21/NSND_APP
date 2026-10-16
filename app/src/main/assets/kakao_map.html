@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<style>
+  * { margin: 0; padding: 0; }
+  html, body, #map { width: 100%; height: 100%; overflow: hidden; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+window.onerror = function(msg, url, line, col, error) {
+    console.error("Window Error: " + msg + " at " + url + ":" + line);
+    return false;
+};
+</script>
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=KAKAO_JS_KEY&autoload=false"
+        onerror="console.error('Kakao Maps SDK script load failed');"></script>
+<script>
+var map = null;
+var markers = [];
+var infowindow = null;
+
+function initMap() {
+    console.log("initMap called, kakao defined?", typeof kakao !== 'undefined');
+    if (typeof kakao === 'undefined' || !kakao.maps) {
+        console.error("Kakao SDK not loaded yet");
+        return;
+    }
+    kakao.maps.load(function() {
+        console.log("kakao.maps.load callback triggered");
+        var container = document.getElementById('map');
+        var options = {
+            center: new kakao.maps.LatLng(37.402056, 127.108212),
+            level: 5
+        };
+        map = new kakao.maps.Map(container, options);
+        infowindow = new kakao.maps.InfoWindow({ zIndex: 1 });
+
+        // Android에 맵 준비 완료 알림
+        if (window.AndroidBridge) {
+            window.AndroidBridge.onMapReady();
+        }
+    });
+}
+
+window.addEventListener('DOMContentLoaded', initMap);
+
+function clearMarkers() {
+    for (var i = 0; i < markers.length; i++) {
+        markers[i].setMap(null);
+    }
+    markers = [];
+    if (infowindow) infowindow.close();
+}
+
+function addMarker(lat, lng, level, time, dateStr, recordId) {
+    if (!map) return;
+
+    var colorMap = { 1: '#FFCA28', 2: '#FF9800', 3: '#F44336' };
+    var labelMap = { 1: '주의', 2: '경고', 3: '위험' };
+    var color = colorMap[level] || '#FFCA28';
+    var label = labelMap[level] || '주의';
+
+    var markerSize = level === 3 ? 20 : (level === 2 ? 17 : 15);
+
+    // SVG 마커 이미지 생성
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + (markerSize*2) + '" height="' + (markerSize*2) + '">' +
+              '<circle cx="' + markerSize + '" cy="' + markerSize + '" r="' + (markerSize-1) + '" fill="' + color + '" stroke="#ffffff" stroke-width="2.5" opacity="0.95"/>' +
+              '<text x="' + markerSize + '" y="' + (markerSize+4) + '" text-anchor="middle" font-size="11" font-weight="900" fill="#ffffff">' + level + '</text>' +
+              '</svg>';
+
+    var imageSrc = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    var imageSize = new kakao.maps.Size(markerSize*2, markerSize*2);
+    var imageOption = { offset: new kakao.maps.Point(markerSize, markerSize) };
+    var markerImage = new kakao.maps.MarkerImage(imageSrc, imageSize, imageOption);
+
+    var position = new kakao.maps.LatLng(lat, lng);
+    var marker = new kakao.maps.Marker({
+        map: map,
+        position: position,
+        image: markerImage
+    });
+
+    var displayDateTime = (dateStr ? dateStr + ' ' : '') + time;
+    var infoContent = '<div style="padding:6px 12px;font-size:12px;line-height:1.4;white-space:nowrap;background:#1E293B;color:#fff;border-radius:8px;border:1px solid rgba(255,255,255,0.2);box-shadow:0 4px 10px rgba(0,0,0,0.35);">' +
+                      '<span style="color:' + color + ';font-weight:bold;">' + level + '단계(' + label + ')</span> ' + displayDateTime + '</div>';
+
+    kakao.maps.event.addListener(marker, 'click', function() {
+        infowindow.setContent(infoContent);
+        infowindow.open(map, marker);
+        if (recordId && window.AndroidBridge && typeof window.AndroidBridge.onLocalMarkerClick === 'function') {
+            window.AndroidBridge.onLocalMarkerClick(recordId);
+        } else if (window.AndroidBridge && typeof window.AndroidBridge.onMarkerClick === 'function') {
+            window.AndroidBridge.onMarkerClick(level, (dateStr ? dateStr + ' ' : '') + time, lat, lng);
+        }
+    });
+
+    markers.push(marker);
+}
+
+var myLocationMarker = null;
+
+function clearUserLocation() {
+    if (myLocationMarker) myLocationMarker.setMap(null);
+}
+
+function setUserLocation(lat, lng, shouldMoveCamera) {
+    if (!map) return;
+    var pos = new kakao.maps.LatLng(lat, lng);
+
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">' +
+              '<circle cx="18" cy="18" r="16" fill="#2563EB" fill-opacity="0.25"/>' +
+              '<circle cx="18" cy="18" r="9" fill="#FFFFFF"/>' +
+              '<circle cx="18" cy="18" r="6.5" fill="#2563EB"/>' +
+              '</svg>';
+
+    var imageSrc = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    var imageSize = new kakao.maps.Size(36, 36);
+    var imageOption = { offset: new kakao.maps.Point(18, 18) };
+    var markerImage = new kakao.maps.MarkerImage(imageSrc, imageSize, imageOption);
+
+    if (myLocationMarker) {
+        myLocationMarker.setPosition(pos);
+        myLocationMarker.setMap(map);
+    } else {
+        myLocationMarker = new kakao.maps.Marker({
+            map: map,
+            position: pos,
+            image: markerImage,
+            zIndex: 10
+        });
+
+        var userContent = '<div style="padding:6px 12px;font-size:12px;font-weight:bold;white-space:nowrap;background:#1E40AF;color:#fff;border-radius:8px;box-shadow:0 4px 10px rgba(0,0,0,0.35);">📍 현재 내 위치</div>';
+        kakao.maps.event.addListener(myLocationMarker, 'click', function() {
+            infowindow.setContent(userContent);
+            infowindow.open(map, myLocationMarker);
+        });
+    }
+
+    if (shouldMoveCamera) {
+        map.setCenter(pos);
+        map.setLevel(5);
+    }
+}
+
+function moveCamera(lat, lng, level) {
+    if (!map) return;
+    var moveLatLng = new kakao.maps.LatLng(lat, lng);
+    map.setCenter(moveLatLng);
+    if (level) {
+        map.setLevel(level);
+    }
+}
+
+function fitBounds(topPadding, rightPadding, bottomPadding, leftPadding) {
+    if (!map || markers.length === 0) return;
+    var bounds = new kakao.maps.LatLngBounds();
+    for (var i = 0; i < markers.length; i++) {
+        bounds.extend(markers[i].getPosition());
+    }
+    map.setBounds(bounds, topPadding || 50, rightPadding || 50, bottomPadding || 50, leftPadding || 50);
+}
+</script>
+</body>
+</html>

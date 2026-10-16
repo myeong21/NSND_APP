@@ -27,6 +27,7 @@
     <string name="nav_contact">연락설정</string>
     <string name="nav_massager">마사지기</string>
     <string name="nav_sleep">수면데이터</string>
+    <string name="nav_map">주행지도</string>
 
     <!-- 홈 화면 -->
     <string name="home_co2_label">실내 CO₂ 농도</string>
@@ -49,8 +50,8 @@
     <string name="alert_title">졸음 감지!</string>
     <string name="alert_stage_1">1단계 경보</string>
     <string name="alert_stage_2">2단계 경보</string>
-    <string name="alert_stage_3">3단계 경보 — 긴급 연락 발송 중</string>
-    <string name="alert_dismiss">확인</string>
+    <string name="alert_stage_3">3단계 경보</string>
+    <string name="alert_dismiss">경보 중지</string>
 
     <!-- 연락 보내기 설정 -->
     <string name="contact_title">연락 보내기 설정</string>

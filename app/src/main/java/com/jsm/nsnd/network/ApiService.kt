@@ -30,7 +30,8 @@ interface ApiService {
     @GET("report/by-date")
     suspend fun getReportByDate(
         @Header("Authorization") token: String,
-        @Query("date") date: String
+        @Query("date") date: String,
+        @Query("utc_offset_minutes") utcOffsetMinutes: Int = com.jsm.nsnd.ui.common.ServerTime.utcOffsetMinutes(date)
     ): ReportByDateResponse
 
     @GET("report/history")
@@ -77,4 +78,12 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Body body: DetectionRequest
     )
+
+    @POST("detection/alarm/acknowledge")
+    suspend fun acknowledgeAlarm(
+        @Header("Authorization") token: String,
+        @Body body: DetectionRequest
+    ): AlarmAcknowledgementResponse
 }
+
+data class AlarmAcknowledgementResponse(val session_id: Int, val status: String, val message: String)

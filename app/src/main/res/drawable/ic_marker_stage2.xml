@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="30dp"
+    android:height="30dp"
+    android:viewportWidth="30"
+    android:viewportHeight="30">
+    <!-- 외곽 원 그림자 -->
+    <path
+        android:fillColor="#4DFF9800"
+        android:pathData="M15,15m-14,0a14,14 0,1,1 28,0a14,14 0,1,1 -28,0" />
+    <!-- 내부 마커 원 -->
+    <path
+        android:fillColor="#FF9800"
+        android:pathData="M15,15m-9,0a9,9 0,1,1 18,0a9,9 0,1,1 -18,0" />
+    <!-- 중심 하얀 점 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M15,15m-3,0a3,3 0,1,1 6,0a3,3 0,1,1 -6,0" />
+</vector>

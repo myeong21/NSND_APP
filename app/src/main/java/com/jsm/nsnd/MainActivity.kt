@@ -19,6 +19,9 @@ import androidx.navigation.ui.setupWithNavController
 import com.jsm.nsnd.R
 import com.jsm.nsnd.databinding.ActivityMainBinding
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
 import android.widget.Toast
 import android.os.Handler
 import android.os.Looper
@@ -28,6 +31,12 @@ import com.jsm.nsnd.data.session.ServerConfig
 import com.jsm.nsnd.data.session.SessionManager
 import com.jsm.nsnd.ui.auth.LoginActivity
 import com.jsm.nsnd.ui.common.ApiErrorMessage
+import com.jsm.nsnd.service.DetectionForegroundService
+import com.jsm.nsnd.data.local.DetectionMessageParser
+import com.jsm.nsnd.ui.overlay.AlertOverlayActivity
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -41,6 +50,24 @@ class MainActivity : AppCompatActivity() {
     private val authHandler = Handler(Looper.getMainLooper())
     private var authCheckInFlight = false
     private var loggingOut = false
+    private val detectionReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val sessionId = intent?.getIntExtra(DetectionForegroundService.EXTRA_SESSION_ID, -1) ?: return
+            if (sessionId != sessionManager.getActiveSessionId() ||
+                !intent.getBooleanExtra(DetectionForegroundService.EXTRA_ALERT_REQUIRED, false)) return
+            val sample = intent.getStringExtra(DetectionForegroundService.EXTRA_PAYLOAD)
+                ?.let(DetectionMessageParser::parse) ?: return
+            showDetectionAlert(sessionId, sample.stage)
+        }
+    }
+
+    private fun showDetectionAlert(sessionId: Int, stage: Int) {
+        if (loggingOut || !sessionManager.isLoggedIn() || stage !in 1..3 || AlertOverlayActivity.isOpen) return
+        startActivity(Intent(this, AlertOverlayActivity::class.java).apply {
+            putExtra(AlertOverlayActivity.EXTRA_STAGE, stage)
+            putExtra(DetectionForegroundService.EXTRA_SESSION_ID, sessionId)
+        })
+    }
     private val authCheckRunnable = object : Runnable {
         override fun run() {
             validateActiveLogin()
@@ -106,11 +133,18 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        ContextCompat.registerReceiver(this, detectionReceiver,
+            IntentFilter(DetectionForegroundService.ACTION_DETECTION_EVENT), ContextCompat.RECEIVER_NOT_EXPORTED)
+        DetectionForegroundService.latestDetection?.takeIf {
+            it.account == sessionManager.getDetectionAccountKey() &&
+                it.sessionId == sessionManager.getActiveSessionId() && it.alertRequired
+        }?.let { showDetectionAlert(it.sessionId, it.stage) }
         authHandler.removeCallbacks(authCheckRunnable)
         authHandler.post(authCheckRunnable)
     }
 
     override fun onStop() {
+        unregisterReceiver(detectionReceiver)
         authHandler.removeCallbacks(authCheckRunnable)
         super.onStop()
     }
@@ -163,8 +197,20 @@ class MainActivity : AppCompatActivity() {
                 R.id.contactFragment  -> getString(R.string.nav_contact)
                 R.id.massagerFragment -> getString(R.string.nav_massager)
                 R.id.sleepDataFragment -> getString(R.string.nav_sleep)
+                R.id.mapFragment       -> getString(R.string.nav_map)
                 else -> getString(R.string.app_name)
             }
+        }
+    }
+
+    /** Full-map exploration must use the same saved tab stacks as bottom navigation. */
+    fun openMapTab(date: String? = null, serverRecords: Boolean = false) {
+        binding.bottomNavigation.selectedItemId = R.id.mapFragment
+        if (date != null) binding.bottomNavigation.post {
+            if (navController.currentDestination?.id != R.id.mapFragment) return@post
+            val host = supportFragmentManager.findFragmentById(R.id.navHostFragment) as? NavHostFragment
+            (host?.childFragmentManager?.primaryNavigationFragment as? com.jsm.nsnd.ui.map.MapFragment)
+                ?.applyRecordSelection(date, serverRecords)
         }
     }
 
@@ -268,7 +314,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnServerConfig.setOnClickListener {
-            ServerConfig.showEditDialog(this)
+            ServerConfig.showEditDialog(this) {
+                if (!sessionManager.isLoggedIn()) forceLogout("서버 주소가 변경되었습니다. 다시 로그인해주세요.")
+            }
         }
 
         binding.btnWithdraw.setOnClickListener {
@@ -280,9 +328,17 @@ class MainActivity : AppCompatActivity() {
                         .enqueue(object : Callback<Void> {
                             override fun onResponse(call: Call<Void>, response: Response<Void>) {
                                 if (response.isSuccessful) {
-                                    sessionManager.clear()
-                                    startActivity(Intent(this@MainActivity, LoginActivity::class.java))
-                                    finish()
+                                    loggingOut = true // Finish local cleanup before an in-flight auth check navigates away.
+                                    lifecycleScope.launch {
+                                        try {
+                                            sessionManager.clearAfterWithdrawal()
+                                        } catch (error: Exception) {
+                                            sessionManager.clear()
+                                            Toast.makeText(this@MainActivity, "회원탈퇴는 완료됐지만 로컬 기록 정리에 실패했습니다.", Toast.LENGTH_LONG).show()
+                                        }
+                                        startActivity(Intent(this@MainActivity, LoginActivity::class.java))
+                                        finish()
+                                    }
                                 } else {
                                     Toast.makeText(
                                         this@MainActivity,

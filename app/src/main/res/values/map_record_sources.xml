@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="map_record_sources">
+        <item>로컬 기록 · 기기 위치</item>
+        <item>서버 기록 · 기존 저장 좌표</item>
+    </string-array>
+</resources>

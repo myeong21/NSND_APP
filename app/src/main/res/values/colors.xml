@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <!-- 기본 공통 색상 -->
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+
     <!-- NSND 디자인 시스템: Calm Blue + Safety semantic colors -->
     <color name="accent_primary">#287CF5</color>
     <color name="accent_primary_dark">#1767D6</color>
@@ -77,4 +81,7 @@
     <color name="text_secondary">@color/light_text_secondary</color>
     <color name="text_hint">@color/light_text_hint</color>
     <color name="splash_blue">#0754D6</color>
+
+    <!-- 지도/오버레이 빈 상태 배경용 -->
+    <color name="bg_surface">#F8FAFC</color>
 </resources>

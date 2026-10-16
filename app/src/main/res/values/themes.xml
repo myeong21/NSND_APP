@@ -16,7 +16,7 @@
         <item name="android:navigationBarColor">@color/light_nav_bg</item>
         <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="o">true</item>
-        <item name="android:fontFamily">sans</item>
+        <item name="android:fontFamily">sans-serif</item>
         <item name="android:windowActionModeOverlay">true</item>
 
         <!-- 라이트 모드 속성 연결 -->
@@ -108,7 +108,7 @@
     </style>
 
     <style name="TextAppearance.NSND.Body" parent="TextAppearance.Material3.BodyMedium">
-        <item name="android:fontFamily">sans</item>
+        <item name="android:fontFamily">sans-serif</item>
         <item name="android:textColor">@color/text_secondary</item>
         <item name="android:textSize">14sp</item>
     </style>

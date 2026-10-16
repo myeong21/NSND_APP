@@ -29,4 +29,7 @@
     <color name="nav_active">#75A8FF</color>
     <color name="nav_inactive">#8191A9</color>
 
+    <!-- 지도/오버레이 빈 상태 배경용 (다크) -->
+    <color name="bg_surface">#17233A</color>
+
 </resources>

@@ -17,8 +17,14 @@ object ServerConfig {
     }
 
     fun setIp(context: Context, ip: String) {
+        val host = ip.trim().lowercase(java.util.Locale.ROOT)
+        require(host.matches(Regex("[a-z0-9.-]+"))) { "IP 또는 호스트 이름만 입력해주세요" }
+        if (host == getIp(context)) return
+        val session = SessionManager(context)
+        check(session.getActiveSessionId() <= 0) { "운전 세션을 종료한 후 서버 주소를 변경해주세요" }
+        session.clear() // Never send the previous server's token to a new host.
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putString(KEY_SERVER_IP, ip.trim()).apply()
+        prefs.edit().putString(KEY_SERVER_IP, host).apply()
     }
 
     fun getHttpBaseUrl(context: Context): String = "http://${getIp(context)}:$PORT/"
@@ -42,7 +48,15 @@ object ServerConfig {
             .setPositiveButton("저장") { _, _ ->
                 val newIp = input.text.toString().trim()
                 if (newIp.isNotEmpty()) {
-                    setIp(context, newIp)
+                    try {
+                        setIp(context, newIp)
+                    } catch (error: IllegalArgumentException) {
+                        Toast.makeText(context, error.message, Toast.LENGTH_LONG).show()
+                        return@setPositiveButton
+                    } catch (error: IllegalStateException) {
+                        Toast.makeText(context, error.message, Toast.LENGTH_LONG).show()
+                        return@setPositiveButton
+                    }
                     Toast.makeText(context, "서버 주소가 저장되었습니다: $newIp", Toast.LENGTH_SHORT).show()
                     onSaved?.invoke()
                 } else {

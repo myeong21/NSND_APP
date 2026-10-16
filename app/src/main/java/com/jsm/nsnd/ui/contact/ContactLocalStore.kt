@@ -8,7 +8,6 @@ import org.json.JSONObject
 /** 계정별 연락처 오프라인 캐시. 서버 장애 중에도 긴급 SMS에 사용합니다. */
 object ContactLocalStore {
     private const val PREFS_NAME = "nsnd_prefs"
-    private const val LEGACY_GLOBAL_KEY = "contact_list"
 
     private fun accountSuffix(context: Context) = SessionManager(context).getAccountStorageKey()
     private fun contactsKey(context: Context) = "contact_list_${accountSuffix(context)}"
@@ -17,11 +16,9 @@ object ContactLocalStore {
     fun load(context: Context): List<ContactItem> {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val key = contactsKey(context)
-        val accountValue = prefs.getString(key, null)
-        val raw = accountValue ?: prefs.getString(LEGACY_GLOBAL_KEY, null).orEmpty()
-        if (accountValue == null && raw.isNotBlank()) {
-            prefs.edit().putString(key, raw).remove(LEGACY_GLOBAL_KEY).apply()
-        }
+        // Neither new nor old tokens may inherit data with unverifiable legacy ownership.
+        // Leave those keys untouched so an explicit migration can recover them later.
+        val raw = prefs.getString(key, null).orEmpty()
         if (raw.isBlank()) return emptyList()
         return if (raw.trimStart().startsWith("[")) parseJson(raw) else parseLegacy(raw)
     }
@@ -47,6 +44,11 @@ object ContactLocalStore {
     fun markServerMigrationComplete(context: Context) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putBoolean(migrationKey(context), true).apply()
+    }
+
+    fun clearAccount(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .remove(contactsKey(context)).remove(migrationKey(context)).apply()
     }
 
     private fun parseJson(raw: String): List<ContactItem> = runCatching {

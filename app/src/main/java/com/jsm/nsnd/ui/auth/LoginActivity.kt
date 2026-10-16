@@ -35,28 +35,19 @@ class LoginActivity : AppCompatActivity() {
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
-        val missing = missingRuntimePermissions()
-        if (missing.isEmpty()) {
-            checkFullScreenAlertPermission()
-        } else {
-            showRuntimePermissionRequiredDialog(missing)
-        }
+        continueStartup()
     }
 
     private val appSettingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
-        startRequiredPermissionFlow()
+        continueStartup()
     }
 
     private val fullScreenSettingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
-        if (canUseFullScreenAlert()) {
-            continueStartup()
-        } else {
-            showFullScreenPermissionRequiredDialog()
-        }
+        continueStartup()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,6 +57,20 @@ class LoginActivity : AppCompatActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, true)
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // ⚠️ [임시] 카카오맵 키 해시 출력 - 등록 후 이 블록 삭제!
+        try {
+            val info = packageManager.getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNATURES)
+            for (sig in info.signatures.orEmpty()) {
+                val md = java.security.MessageDigest.getInstance("SHA")
+                md.update(sig.toByteArray())
+                val hash = android.util.Base64.encodeToString(md.digest(), android.util.Base64.DEFAULT)
+                android.util.Log.d("KeyHash", "카카오 키 해시: $hash")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("KeyHash", "키 해시 추출 실패: ${e.message}")
+        }
+
 
         sessionManager = SessionManager(this)
 
@@ -133,11 +138,7 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun checkFullScreenAlertPermission() {
-        if (canUseFullScreenAlert()) {
-            continueStartup()
-        } else {
-            showFullScreenPermissionRequiredDialog()
-        }
+        continueStartup()
     }
 
     private fun canUseFullScreenAlert(): Boolean {
@@ -189,10 +190,12 @@ class LoginActivity : AppCompatActivity() {
         }
 
         binding.btnLogin.isEnabled = false
+        val requestedServer = ServerConfig.getHttpBaseUrl(this)
         ApiClient.authApi(this).login(LoginRequest(username, password, deviceId()))
             .enqueue(object : Callback<TokenResponse> {
                 override fun onResponse(call: Call<TokenResponse>, response: Response<TokenResponse>) {
                     binding.btnLogin.isEnabled = true
+                    if (ServerConfig.getHttpBaseUrl(this@LoginActivity) != requestedServer) return
                     val body = response.body()
                     if (response.isSuccessful && body != null) {
                         sessionManager.saveToken(body.access_token)
@@ -210,12 +213,16 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun validateSavedLogin() {
+        val requestedServer = ServerConfig.getHttpBaseUrl(this)
+        val requestedToken = sessionManager.getToken()
         ApiClient.authApi(this).me(sessionManager.getAuthHeader())
             .enqueue(object : Callback<com.jsm.nsnd.data.api.UserResponse> {
                 override fun onResponse(
                     call: Call<com.jsm.nsnd.data.api.UserResponse>,
                     response: Response<com.jsm.nsnd.data.api.UserResponse>
                 ) {
+                    if (ServerConfig.getHttpBaseUrl(this@LoginActivity) != requestedServer ||
+                        sessionManager.getToken() != requestedToken) return
                     if (response.isSuccessful) {
                         goMain()
                     } else {

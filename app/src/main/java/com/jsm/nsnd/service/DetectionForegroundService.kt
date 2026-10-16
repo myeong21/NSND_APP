@@ -9,6 +9,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
 import android.os.Build
 import android.os.Handler
@@ -17,6 +18,18 @@ import android.os.Looper
 import android.telephony.SmsManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import androidx.core.app.ServiceCompat
+import com.jsm.nsnd.data.local.DetectionMessageParser
+import com.jsm.nsnd.data.local.DetectionSample
+import com.jsm.nsnd.data.local.LocalDetectionStore
+import com.jsm.nsnd.data.local.LocationSnapshot
+import com.jsm.nsnd.data.local.DrowsinessAlarmPolicy
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
 import com.jsm.nsnd.R
 import com.jsm.nsnd.data.session.SessionManager
 import com.jsm.nsnd.network.RetrofitClient
@@ -30,31 +43,69 @@ import org.json.JSONObject
 /** 홈 화면과 독립적으로 실시간 감지 연결과 위험 경보를 유지합니다. */
 class DetectionForegroundService : Service() {
     private val handler = Handler(Looper.getMainLooper())
-    private var webSocket: WebSocket? = null
+    @Volatile private var webSocket: WebSocket? = null
     private var sessionId = -1
-    private var shouldRun = false
+    @Volatile private var shouldRun = false
     private var retryCount = 0
-    private var lastBackgroundAlertStage = 0
-    private var lastBackgroundAlertAt = 0L
+    private var ownerAccount: String? = null
+    private var ownerUserId: Long? = null
+    @Volatile private var connectionGeneration = 0
+    private val storageScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private data class PendingRecord(val account: String, val userId: Long, val session: Int,
+        val sample: DetectionSample, val receivedAtMs: Long, val location: LocationSnapshot)
+    private val pendingRecords = Channel<PendingRecord>(Channel.UNLIMITED)
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannels()
+        storageScope.launch {
+            try {
+                val store = LocalDetectionStore.get(this@DetectionForegroundService)
+                val processedStages = mutableMapOf<Pair<String, Int>, Int>()
+                for (record in pendingRecords) {
+                    val key = record.account to record.session
+                    if (processedStages[key] == record.sample.stage) continue
+                    runCatching {
+                        store.recordTransition(record.account, record.userId, record.session, record.sample,
+                            record.receivedAtMs, record.location)
+                        processedStages[key] = record.sample.stage
+                    }.onFailure {
+                        android.util.Log.e("DetectionService", "로컬 감지 기록 저장 실패", it)
+                        updateStatusNotification("감지 중 · 로컬 기록 저장 실패")
+                    }
+                }
+            } finally { storageScope.cancel() }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> stopConnection()
             ACTION_START, null -> {
-                sessionId = intent?.getIntExtra(EXTRA_SESSION_ID, -1)
+                val manager = SessionManager(this)
+                val requestedSession = intent?.getIntExtra(EXTRA_SESSION_ID, -1)
                     ?.takeIf { it > 0 }
-                    ?: SessionManager(this).getActiveSessionId()
-                if (sessionId <= 0) {
+                    ?: manager.getActiveSessionId()
+                val account = manager.getDetectionAccountKey()
+                if (requestedSession <= 0 || account == null || requestedSession != manager.getActiveSessionId()) {
                     stopSelf()
                     return START_NOT_STICKY
                 }
+                if (sessionId != requestedSession || ownerAccount != account || !shouldRun) {
+                    latestDetection = null
+                    alarmPolicy = DrowsinessAlarmPolicy()
+                    latestFailure = null
+                    connectionGeneration++
+                    webSocket?.cancel()
+                    webSocket = null
+                    handler.removeCallbacksAndMessages(null)
+                }
+                sessionId = requestedSession
+                ownerAccount = account
+                ownerUserId = manager.getUserId()
                 shouldRun = true
-                startForeground(NOTIFICATION_ID, buildStatusNotification("실시간 감지 연결 중"))
+                latestFailure = null
+                startMonitoringForeground()
                 connect()
             }
         }
@@ -63,39 +114,69 @@ class DetectionForegroundService : Service() {
 
     private fun connect() {
         if (!shouldRun || sessionId <= 0 || webSocket != null) return
-        val token = SessionManager(this).getToken().orEmpty()
+        val manager = SessionManager(this)
+        val token = manager.getToken().orEmpty()
+        if (manager.getDetectionAccountKey() != ownerAccount || manager.getActiveSessionId() != sessionId) {
+            stopConnection()
+            return
+        }
         if (token.isBlank()) {
             broadcastConnection(STATE_AUTH_EXPIRED, "로그인이 만료되었습니다")
             stopConnection()
             return
         }
 
+        val generation = ++connectionGeneration
+        val connectedSession = sessionId
+        val account = ownerAccount ?: return
+        val userId = ownerUserId ?: return
         val request = okhttp3.Request.Builder()
             .url("${RetrofitClient.wsBaseUrl(this)}/detection/ws/$sessionId")
             .header("Authorization", "Bearer $token")
             .build()
         webSocket = RetrofitClient.okHttpClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
+                if (generation != connectionGeneration || !shouldRun) { webSocket.cancel(); return }
                 retryCount = 0
                 broadcastConnection(STATE_CONNECTED, null)
                 updateStatusNotification("실시간 감지 작동 중")
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
+                val receivedAtMs = System.currentTimeMillis()
+                if (generation != connectionGeneration || !shouldRun) return
+                val active = SessionManager(this@DetectionForegroundService)
+                if (active.getDetectionAccountKey() != account || active.getActiveSessionId() != connectedSession) {
+                    handler.post { stopConnection() }
+                    return
+                }
                 val json = runCatching { JSONObject(text) }.getOrNull() ?: return
-                if (json.optBoolean("ping", false)) return
-                val stage = json.optInt("drowsy_level", 0)
+                if (json.optBoolean("ping")) return
+                if (json.has("error") || json.optString("state") == "ERROR") {
+                    failDetection(json.optString("error", json.optString("message", "카메라 또는 추론 오류가 발생했습니다.")))
+                    return
+                }
+                val sample = DetectionMessageParser.parse(text) ?: return
+                val stage = sample.stage
+                val alertRequired = publishDetection(account, connectedSession, sample, text).alertRequired
+                if (sample.observationValid) {
+                    pendingRecords.trySend(PendingRecord(account, userId, connectedSession, sample, receivedAtMs,
+                        LocationTracker.snapshot(this@DetectionForegroundService)))
+                }
                 sendBroadcast(Intent(ACTION_DETECTION_EVENT).apply {
                     setPackage(packageName)
                     putExtra(EXTRA_PAYLOAD, text)
+                    putExtra(EXTRA_SESSION_ID, connectedSession)
+                    putExtra(EXTRA_ALERT_REQUIRED, alertRequired)
                 })
-                if (!isAppForeground() && stage > 0) showBackgroundAlert(stage)
-                if (stage == 0) lastBackgroundAlertStage = 0
+                if (!isAppForeground() && !AlertOverlayActivity.isOpen && alertRequired) showBackgroundAlert(stage)
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                if (generation != connectionGeneration || !shouldRun) return
                 this@DetectionForegroundService.webSocket = null
                 if (response?.code == 401) {
+                    SessionManager(this@DetectionForegroundService).clear()
                     broadcastConnection(STATE_AUTH_EXPIRED, "로그인이 만료되었습니다")
                     stopConnection()
                 } else {
@@ -104,18 +185,27 @@ class DetectionForegroundService : Service() {
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                if (generation != connectionGeneration || !shouldRun) return
                 this@DetectionForegroundService.webSocket = null
                 when (code) {
+                    1011 -> failDetection("카메라 또는 추론 오류입니다. 졸음 감지를 다시 시작해주세요.")
+                    1000 -> stopConnection()
                     4001 -> {
+                        SessionManager(this@DetectionForegroundService).clear()
                         broadcastConnection(STATE_AUTH_EXPIRED, reason)
                         stopConnection()
                     }
                     4004 -> {
-                        broadcastConnection(STATE_SESSION_ENDED, reason)
-                        stopConnection()
+                        // An inactive detector does not mean the driving session ended.
+                        // Keep its ID; HomeFragment will reconcile /sessions/current.
+                        failDetection(reason.ifBlank { "감지가 실행 중이 아닙니다. 다시 시작해주세요." })
                     }
                     else -> if (shouldRun) scheduleReconnect(reason)
                 }
+            }
+
+            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                webSocket.close(code, reason)
             }
         })
     }
@@ -131,14 +221,11 @@ class DetectionForegroundService : Service() {
     }
 
     private fun showBackgroundAlert(stage: Int) {
-        val now = System.currentTimeMillis()
-        if (stage == lastBackgroundAlertStage && now - lastBackgroundAlertAt < ALERT_COOLDOWN_MS) return
-        lastBackgroundAlertStage = stage
-        lastBackgroundAlertAt = now
-
         val fullScreenIntent = Intent(this, AlertOverlayActivity::class.java).apply {
             putExtra(AlertOverlayActivity.EXTRA_STAGE, stage)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_SESSION_ID, sessionId)
+            putExtra(AlertOverlayActivity.EXTRA_SMS_HANDLED, stage >= 3)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
         val pendingIntent = PendingIntent.getActivity(
             this,
@@ -171,13 +258,61 @@ class DetectionForegroundService : Service() {
         }
     }
 
+    private fun failDetection(reason: String) {
+        shouldRun = false
+        connectionGeneration++
+        handler.removeCallbacksAndMessages(null)
+        webSocket?.cancel()
+        webSocket = null
+        latestFailure = reason
+        latestDetection = latestDetection?.copy(alertRequired = false)
+        // Keep any already-playing local alarm audible until the user stops it.
+        broadcastConnection(STATE_ERROR, reason)
+        updateStatusNotification("감지 오류 · 앱에서 다시 시작해주세요")
+        LocationTracker.stopTracking("detection")
+    }
+
     private fun stopConnection() {
         shouldRun = false
+        latestDetection = null
+        latestFailure = null
+        broadcastConnection(STATE_STOPPED, null)
+        connectionGeneration++
         handler.removeCallbacksAndMessages(null)
         webSocket?.close(1000, "감지 서비스 종료")
         webSocket = null
+        LocationTracker.stopTracking("detection")
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    private fun startMonitoringForeground() {
+        val baseType = if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
+        val canLocate = LocationTracker.hasLocationPermission(this)
+        try {
+            ServiceCompat.startForeground(this, NOTIFICATION_ID, buildStatusNotification("실시간 감지 연결 중"),
+                baseType or if (canLocate) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0)
+            if (canLocate) LocationTracker.startTracking(this, "detection")
+        } catch (e: SecurityException) {
+            // Background restart may lack while-in-use location eligibility. Detection still works.
+            ServiceCompat.startForeground(this, NOTIFICATION_ID,
+                buildStatusNotification("감지 중 · 위치 권한/앱 실행 상태 확인 필요"), baseType)
+            LocationTracker.stopTracking("detection")
+        }
+    }
+
+    override fun onDestroy() {
+        shouldRun = false
+        latestDetection = null
+        latestFailure = null
+        broadcastConnection(STATE_STOPPED, null)
+        connectionGeneration++
+        handler.removeCallbacksAndMessages(null)
+        webSocket?.cancel()
+        webSocket = null
+        LocationTracker.stopTracking("detection")
+        pendingRecords.close() // Drain already received events on the IO worker.
+        super.onDestroy()
     }
 
     private fun broadcastConnection(state: String, message: String?) {
@@ -185,6 +320,7 @@ class DetectionForegroundService : Service() {
             setPackage(packageName)
             putExtra(EXTRA_STATE, state)
             putExtra(EXTRA_MESSAGE, message)
+            putExtra(EXTRA_SESSION_ID, sessionId)
         })
     }
 
@@ -232,11 +368,40 @@ class DetectionForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
+        data class LiveDetection(val account: String, val sessionId: Int,
+            val sample: DetectionSample, val payload: String, val alertRequired: Boolean) {
+            val stage: Int get() = sample.stage
+        }
+        @Volatile var latestDetection: LiveDetection? = null
+            private set
+        @Volatile var latestFailure: String? = null
+            private set
+        @Volatile private var alarmPolicy = DrowsinessAlarmPolicy()
+
+        @Synchronized fun markAlarmStopped(sessionId: Int) {
+            latestDetection?.takeIf { it.sessionId == sessionId }?.let {
+                alarmPolicy.acknowledge()
+                latestDetection = it.copy(alertRequired = false)
+            }
+        }
+
+        @Synchronized private fun publishDetection(account: String, sessionId: Int,
+            sample: DetectionSample, payload: String): LiveDetection {
+            return LiveDetection(account, sessionId, sample, payload, alarmPolicy.accept(sample)).also {
+                latestDetection = it
+            }
+        }
+
+        fun cancelAlertNotifications(context: Context) {
+            val manager = context.getSystemService(NotificationManager::class.java)
+            for (stage in 1..3) manager.cancel(ALERT_NOTIFICATION_ID + stage)
+        }
         const val ACTION_START = "com.jsm.nsnd.action.START_DETECTION_SERVICE"
         const val ACTION_STOP = "com.jsm.nsnd.action.STOP_DETECTION_SERVICE"
         const val ACTION_DETECTION_EVENT = "com.jsm.nsnd.action.DETECTION_EVENT"
         const val ACTION_CONNECTION_STATE = "com.jsm.nsnd.action.DETECTION_CONNECTION"
         const val EXTRA_SESSION_ID = "session_id"
+        const val EXTRA_ALERT_REQUIRED = "alert_required"
         const val EXTRA_PAYLOAD = "payload"
         const val EXTRA_STATE = "state"
         const val EXTRA_MESSAGE = "message"
@@ -244,10 +409,11 @@ class DetectionForegroundService : Service() {
         const val STATE_RECONNECTING = "reconnecting"
         const val STATE_AUTH_EXPIRED = "auth_expired"
         const val STATE_SESSION_ENDED = "session_ended"
+        const val STATE_STOPPED = "stopped"
+        const val STATE_ERROR = "error"
         private const val STATUS_CHANNEL_ID = "nsnd_detection_status"
         private const val ALERT_CHANNEL_ID = "nsnd_drowsy_alert"
         private const val NOTIFICATION_ID = 4100
         private const val ALERT_NOTIFICATION_ID = 4200
-        private const val ALERT_COOLDOWN_MS = 10_000L
     }
 }
