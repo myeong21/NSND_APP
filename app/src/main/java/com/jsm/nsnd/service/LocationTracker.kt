@@ -9,6 +9,8 @@ import android.os.SystemClock
 import android.location.LocationManager
 import com.jsm.nsnd.data.local.DetectionPolicy
 import com.jsm.nsnd.data.local.LocationSnapshot
+import com.jsm.nsnd.data.local.LocalDetectionStore
+import com.jsm.nsnd.data.session.SessionManager
 import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.core.location.LocationManagerCompat
@@ -33,6 +35,7 @@ object LocationTracker {
     private var isTracking = false
     private val owners = mutableSetOf<String>()
     @Volatile private var latestFix: Location? = null
+    private var distanceOwner: Pair<String, Int>? = null
 
     // 현재 위도 / 경도 캐시
     var currentLatitude: Double? = null
@@ -59,6 +62,7 @@ object LocationTracker {
      * 주행 세션 시작 시 위치 추적 개시 및 거리 초기화
      */
     fun startTracking(context: Context, owner: String = "driving") {
+        restoreSession(context)
         owners.add(owner)
         if (isTracking) return
         if (!hasLocationPermission(context)) {
@@ -66,7 +70,6 @@ object LocationTracker {
             return
         }
 
-        totalDistanceMeters = 0f
         lastLocation = null
         latestFix = null
         currentLatitude = null
@@ -85,6 +88,7 @@ object LocationTracker {
 
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
+                restoreSession(appContext)
                 for (location in result.locations) {
                     if (latestFix != null && location.elapsedRealtimeNanos < latestFix!!.elapsedRealtimeNanos) continue
                     latestFix = Location(location)
@@ -96,9 +100,13 @@ object LocationTracker {
                     if (prev != null) {
                         val distance = prev.distanceTo(location)
                         val elapsedMs = (location.elapsedRealtimeNanos - prev.elapsedRealtimeNanos) / 1_000_000L
-                        if (DetectionPolicy.usableDistance(distance, elapsedMs,
+                        if (distanceOwner != null && DetectionPolicy.usableDistance(distance, elapsedMs,
                                 if (prev.hasAccuracy()) prev.accuracy else null, accuracy)) {
                             totalDistanceMeters += distance
+                            distanceOwner?.let { (account, session) ->
+                                LocalDetectionStore.get(appContext).saveDistance(account, session, totalDistanceMeters.toDouble())
+                                RecordSyncService.schedule(appContext)
+                            }
                             onDistanceChangedListener?.invoke(getDistanceKm())
                         }
                     }
@@ -154,6 +162,27 @@ object LocationTracker {
         return Math.round((totalDistanceMeters / 1000.0) * 100.0) / 100.0
     }
 
+    /** 같은 계정·세션의 저장 거리만 복원하고 재시작 전 좌표와 새 좌표를 이어 붙이지 않는다. */
+    fun restoreSession(context: Context, serverMeters: Double = 0.0) {
+        val manager = SessionManager(context)
+        val session = manager.getActiveSessionId()
+        val key = manager.getDetectionAccountKey()?.takeIf { session > 0 }?.let { it to session }
+        if (key != distanceOwner) {
+            distanceOwner = key
+            lastLocation = null
+            totalDistanceMeters = key?.let { LocalDetectionStore.get(context).distanceMeters(it.first, it.second).toFloat() } ?: 0f
+        }
+        key?.let {
+            totalDistanceMeters = maxOf(totalDistanceMeters, LocalDetectionStore.get(context).distanceMeters(it.first,it.second).toFloat())
+        }
+        if (key != null && serverMeters.isFinite() && serverMeters > totalDistanceMeters) {
+            totalDistanceMeters = serverMeters.toFloat()
+            LocalDetectionStore.get(context).saveDistance(key.first, key.second, serverMeters)
+            LocalDetectionStore.get(context).markDistanceSynced(key.first, key.second, serverMeters)
+        }
+        onDistanceChangedListener?.invoke(getDistanceKm())
+    }
+
     fun isTrackingActive(): Boolean = isTracking
 
     fun stopAllTracking(): Double {
@@ -161,24 +190,26 @@ object LocationTracker {
         return stopTracking()
     }
 
-    fun snapshot(context: Context): LocationSnapshot {
+    fun snapshot(context: Context, receivedAtMs: Long = System.currentTimeMillis()): LocationSnapshot {
         if (!hasLocationPermission(context)) return LocationSnapshot(null, null, null, null, "permission_denied")
         val manager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
         if (manager != null && !LocationManagerCompat.isLocationEnabled(manager)) return LocationSnapshot(null, null, null, null, "services_disabled")
-        return snapshotOf(latestFix)
+        return snapshotOf(latestFix, receivedAtMs)
     }
 
     fun freshLocation(context: Context): Location? =
         if (snapshot(context).latitude != null) latestFix?.let { Location(it) } else null
 
-    fun snapshotOf(location: Location?): LocationSnapshot {
+    fun snapshotOf(location: Location?, receivedAtMs: Long = System.currentTimeMillis()): LocationSnapshot {
         if (location == null) return LocationSnapshot(null, null, null, null, "no_fix")
         if (location.time <= 0 || location.elapsedRealtimeNanos <= 0) return LocationSnapshot(null, null, null, null, "no_fix")
         val age = (SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos) / 1_000_000L
+        val wallAge = receivedAtMs - location.time
         val accuracy = if (location.hasAccuracy()) location.accuracy else null
-        val valid = DetectionPolicy.usableFix(location.latitude, location.longitude, accuracy, age)
+        val valid = wallAge in 0..DetectionPolicy.MAX_LOCATION_AGE_MS &&
+            DetectionPolicy.usableFix(location.latitude, location.longitude, accuracy, age)
         val status = when {
-            age !in 0..DetectionPolicy.MAX_LOCATION_AGE_MS -> "stale"
+            age !in 0..DetectionPolicy.MAX_LOCATION_AGE_MS || wallAge !in 0..DetectionPolicy.MAX_LOCATION_AGE_MS -> "stale"
             !valid -> "inaccurate"
             else -> "available"
         }

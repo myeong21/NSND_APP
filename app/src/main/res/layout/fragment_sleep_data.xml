@@ -156,7 +156,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="로컬 기록은 앱 수신 시각, 서버 기록은 서버 저장 시각입니다. 선택한 출처만 표시합니다."
+                            android:text="실시간 기록은 앱 수신 시각, 복구 이력과 서버 기록은 서버 기록 시각으로 표시합니다."
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
 
@@ -239,7 +239,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="서버 통계 · 안전 점수"
+                            android:text="서버 통계 · 참고 점수"
                             android:textColor="@color/text_secondary"
                             android:textSize="13sp" />
 
@@ -311,7 +311,7 @@
                                 <TextView
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="총 졸음 감지"
+                                    android:text="단계 상승 기록"
                                     android:textColor="@color/text_secondary"
                                     android:textSize="12sp" />
                                 <TextView
@@ -333,7 +333,7 @@
                                 <TextView
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="가장 위험했던 시간"
+                                    android:text="감지 기록이 가장 많은 시간"
                                     android:textColor="@color/text_secondary"
                                     android:textSize="12sp" />
                                 <TextView
@@ -428,6 +428,17 @@
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
+
+            <TextView
+                android:id="@+id/tvObservationStats"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:lineSpacingMultiplier="1.25"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+
 
                 <!-- 3. 시간대별 차트 카드 -->
                 <com.google.android.material.card.MaterialCardView

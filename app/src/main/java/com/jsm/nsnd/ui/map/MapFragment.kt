@@ -587,7 +587,7 @@ class MapFragment : Fragment() {
         b.badgeStage1.text = "🟡 ${records.count { it.stage == 1 }}"
         b.badgeStage2.text = "🟠 ${records.count { it.stage == 2 }}"
         b.badgeStage3.text = "🔴 ${records.count { it.stage == 3 }}"
-        val timeSource = if (showServerRecords) "서버 기록 시각" else "앱 수신 시각"
+        val timeSource = if (showServerRecords) "서버 기록 시각" else "수신 시각 · 복구 이력은 서버 기록 시각"
         b.btnLocalRecords.text = "$source 목록 ${records.size}건 · 위치 없음 ${records.size - locationEvents.size}건 · $timeSource"
         b.cardEmptyNotice.visibility = if (locationEvents.isEmpty()) View.VISIBLE else View.GONE
         if (isNativeMapReady && kakaoMapInstance != null) {

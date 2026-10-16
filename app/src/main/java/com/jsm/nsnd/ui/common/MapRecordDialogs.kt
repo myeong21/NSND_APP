@@ -14,12 +14,13 @@ object MapRecordDialogs {
     }
     fun list(context: Context, records: List<MapRecord>, serverRecords: Boolean = records.firstOrNull()?.isLocal == false,
              onSelect: (MapRecord) -> Unit = { detail(context, it) }) {
-        val title = if (!serverRecords) "로컬 기록 ${records.size}건 · 앱 수신 시각"
+        val title = if (!serverRecords && records.any { it.local?.source == "recovered" }) "로컬 기록 ${records.size}건 · 복구 이력 포함"
+            else if (!serverRecords) "로컬 기록 ${records.size}건 · 앱 수신 시각"
             else "서버 기록 ${records.size}건 · 서버 기록 시각"
         val dialog = AlertDialog.Builder(context).setTitle(title).setNegativeButton("닫기", null)
         if (records.isEmpty()) dialog.setMessage("조회된 기록이 없습니다.")
         else dialog.setItems(records.map {
-            "${it.receiptText()} · ${it.stage}단계\n${it.coordinatesText()} · ${if (it.isLocal) it.id.take(8) else it.id.substringAfterLast(':')}"
+            "${it.timeLabel()} ${it.receiptText()} · ${it.stage}단계\n${it.coordinatesText()} · ${if (it.isLocal) it.id.take(8) else it.id.substringAfterLast(':')}"
         }.toTypedArray()) { _, index -> onSelect(records[index]) }
         dialog.show()
     }

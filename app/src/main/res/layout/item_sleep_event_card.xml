@@ -28,7 +28,7 @@
                 android:layout_gravity="center"
                 android:contentDescription="감지 기록"
                 android:src="@drawable/ic_nav_sleep"
-                android:tint="@color/accent_primary" />
+                app:tint="@color/accent_primary" />
         </FrameLayout>
 
         <TextView

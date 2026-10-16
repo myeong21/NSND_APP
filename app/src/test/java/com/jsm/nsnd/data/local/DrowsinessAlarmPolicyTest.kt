@@ -6,6 +6,27 @@ import org.junit.Test
 class DrowsinessAlarmPolicyTest {
     private fun sample(stage: Int) = DetectionSample(stage, .2, .4)
 
+    @Test fun newRiskIdAtTheSameStageRearmsEvenWhenTheSingleFramePulseWasMissed() {
+        val policy = DrowsinessAlarmPolicy()
+        assertTrue(policy.accept(sample(3).copy(riskId="risk-a")))
+        policy.acknowledge()
+        repeat(20) { assertFalse(policy.accept(sample(3).copy(riskId="risk-a"))) }
+        assertTrue(policy.accept(sample(3).copy(riskId="risk-b")))
+        assertFalse(policy.accept(sample(3).copy(riskId="risk-b")))
+    }
+
+    @Test fun persistedMuteSurvivesProcessRestartButDoesNotMuteTheNextRisk() {
+        val policy = DrowsinessAlarmPolicy()
+        policy.restoreMutedRisk("risk-a")
+        assertFalse(policy.accept(sample(3).copy(riskId="risk-a")))
+        assertFalse(policy.accept(sample(3).copy(riskId="risk-b",observationValid=false)))
+        assertTrue(policy.accept(sample(3).copy(riskId="risk-b")))
+    }
+
+    @Test fun alreadyAcknowledgedRiskDoesNotSoundOnReconnection() {
+        assertFalse(DrowsinessAlarmPolicy().accept(sample(3).copy(riskId="risk-a",alarmAcknowledged=true)))
+    }
+
     @Test fun repeatsAndDownwardTransitionsNeverRearmAcknowledgedAudio() {
         val policy = DrowsinessAlarmPolicy()
         assertTrue(policy.accept(sample(2)))

@@ -12,6 +12,7 @@ class NSNDApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        com.jsm.nsnd.service.RecordSyncService.schedule(this, recover = true)
         try {
             // 카카오맵 SDK v2 정식 초기화
             KakaoMapSdk.init(this, KAKAO_APP_KEY)

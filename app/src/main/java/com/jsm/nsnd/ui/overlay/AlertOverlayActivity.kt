@@ -1,12 +1,10 @@
 package com.jsm.nsnd.ui.overlay
 
-import android.Manifest
 import android.animation.ValueAnimator
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
 import android.os.Bundle
 import android.graphics.drawable.GradientDrawable
 import android.view.View
@@ -17,50 +15,28 @@ import com.jsm.nsnd.R
 import com.jsm.nsnd.databinding.ActivityAlertOverlayBinding
 import android.os.Handler
 import android.os.Looper
-import android.media.MediaPlayer
-import android.media.RingtoneManager
-import android.os.Build
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
-import android.telephony.SmsManager
-import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.OnBackPressedCallback
 import com.jsm.nsnd.data.local.DetectionMessageParser
 import com.jsm.nsnd.data.session.SessionManager
 import com.jsm.nsnd.service.DetectionForegroundService
-import com.jsm.nsnd.ui.contact.ContactLocalStore
 import com.jsm.nsnd.data.local.DetectionSample
-import com.jsm.nsnd.network.RetrofitClient
-import com.jsm.nsnd.network.model.DetectionRequest
-import com.jsm.nsnd.ui.common.ApiErrorMessage
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
-import retrofit2.HttpException
 
 class AlertOverlayActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityAlertOverlayBinding
-    private var mediaPlayer: MediaPlayer? = null
     private val handler = Handler(Looper.getMainLooper())
     private var currentStage = -1
     private var alertSessionId = -1
-    private var smsHandled = false
+    private var alertAccount: String? = null
     private var audioMuted = false
-    private var riskVersion = 0
     private var acknowledgementPending = false
     private var acknowledgementFailure: String? = null
     private var receiverRegistered = false
 
-    private val smsPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) sendEmergencySms()
-            else Toast.makeText(this, "SMS 권한이 없어 긴급 메시지를 발송할 수 없습니다.", Toast.LENGTH_LONG).show()
-        }
-
     private val detectionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
+                DetectionForegroundService.ACTION_ALARM_STATE -> renderAlarmState()
                 DetectionForegroundService.ACTION_DETECTION_EVENT -> {
                     if (intent.getIntExtra(DetectionForegroundService.EXTRA_SESSION_ID, -1) != alertSessionId) return
                     val sample = intent.getStringExtra(DetectionForegroundService.EXTRA_PAYLOAD)
@@ -96,25 +72,32 @@ class AlertOverlayActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityAlertOverlayBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (audioMuted) dismissAlert()
+            }
+        })
 
         activeAlertCount++
+        alertAccount = SessionManager(this).getDetectionAccountKey()
         alertSessionId = intent.getIntExtra(DetectionForegroundService.EXTRA_SESSION_ID,
             SessionManager(this).getActiveSessionId())
-        smsHandled = savedInstanceState?.getBoolean("sms_handled")
-            ?: intent.getBooleanExtra(EXTRA_SMS_HANDLED, false)
         audioMuted = savedInstanceState?.getBoolean("audio_muted") ?: false
         acknowledgementFailure = savedInstanceState?.getString("acknowledgement_failure")
         ContextCompat.registerReceiver(this, detectionReceiver, IntentFilter().apply {
+            addAction(DetectionForegroundService.ACTION_ALARM_STATE)
             addAction(DetectionForegroundService.ACTION_DETECTION_EVENT)
             addAction(DetectionForegroundService.ACTION_CONNECTION_STATE)
         }, ContextCompat.RECEIVER_NOT_EXPORTED)
         receiverRegistered = true
         updateStage(savedInstanceState?.getInt("stage") ?: intent.getIntExtra(EXTRA_STAGE, 1))
         setupDismissButton()
+        renderAlarmState()
     }
 
     override fun onResume() {
         super.onResume()
+        renderAlarmState()
         // Replay the latest sample if it arrived while this activity was being created.
         DetectionForegroundService.latestDetection?.let { latest ->
             if (latest.sessionId == alertSessionId &&
@@ -127,42 +110,27 @@ class AlertOverlayActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        smsHandled = smsHandled || intent.getBooleanExtra(EXTRA_SMS_HANDLED, false)
         updateStage(intent.getIntExtra(EXTRA_STAGE, currentStage))
     }
 
     private fun updateStage(stage: Int) {
         if (isFinishing || stage !in 0..3) return
         if (stage == currentStage) return
-        val previousStage = currentStage
         currentStage = stage
         setupStageDisplay(stage)
         setupStageIndicator(stage)
         startAnimations(stage)
-        if (!audioMuted && previousStage == -1) startPhysicalAlert(stage.coerceAtLeast(1))
-        if (stage == 3 && previousStage == -1 && !audioMuted && !smsHandled) {
-            smsHandled = true
-            requestEmergencySms()
-        }
+
     }
 
     private fun renderSample(sample: DetectionSample, alertRequired: Boolean) {
-        if (alertRequired) {
-            riskVersion++
-            audioMuted = false
-            acknowledgementFailure = null
-            startPhysicalAlert(sample.stage.coerceAtLeast(1))
-            if (sample.stage == 3 && !smsHandled) {
-                smsHandled = true
-                requestEmergencySms()
-            }
-            binding.btnDismiss.text = getString(R.string.alert_dismiss)
-        }
+        renderAlarmState()
         updateStage(sample.stage)
         // A zero level can remain unchanged while measurement readiness changes.
         if (sample.stage == 0) setupStageDisplay(0)
         binding.tvAlertDescription.text = sample.statusText() +
             (if (audioMuted) "\n경보음은 중지되었습니다." else "\n경보음을 멈추려면 ‘경보 중지’를 눌러주세요.") +
+            (if (acknowledgementPending) "\n서버 중지 확인은 화면을 닫아도 재전송합니다." else "") +
             acknowledgementFailure?.let { "\n$it\n서버의 회복 확인을 위해 중지 확인을 재시도해주세요." }.orEmpty()
         if (sample.stage == 0 && (!sample.observationValid || sample.state in setOf("WARMING_UP", "DROWSY_PENDING"))) {
             binding.tvAlertStage.text = when (sample.state) {
@@ -179,7 +147,6 @@ class AlertOverlayActivity : AppCompatActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putInt("stage", currentStage)
-        outState.putBoolean("sms_handled", smsHandled)
         outState.putBoolean("audio_muted", audioMuted)
         outState.putString("acknowledgement_failure", acknowledgementFailure)
         super.onSaveInstanceState(outState)
@@ -309,67 +276,27 @@ class AlertOverlayActivity : AppCompatActivity() {
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
 
-    private fun startPhysicalAlert(stage: Int) {
-        val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        if (mediaPlayer == null) {
-            mediaPlayer = MediaPlayer.create(this, alarmUri)?.apply {
-                isLooping = true
-                start()
-            }
-        }
-
-        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            getSystemService(VibratorManager::class.java).defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            getSystemService(VIBRATOR_SERVICE) as Vibrator
-        }
-        val pattern = when (stage) {
-            1 -> longArrayOf(0, 250, 500)
-            2 -> longArrayOf(0, 400, 250, 600, 350)
-            else -> longArrayOf(0, 700, 200, 900, 200, 1100)
-        }
-        vibrator.cancel()
-        vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0))
-    }
-
-    private fun requestEmergencySms() {
-        if (ContactLocalStore.load(this).isEmpty()) {
-            Toast.makeText(this, "등록된 긴급 연락처가 없어 SMS를 발송하지 못했습니다.", Toast.LENGTH_LONG).show()
+    private fun renderAlarmState() {
+        val state = DetectionForegroundService.alarmUiState
+        if (state.account != alertAccount || state.sessionId != alertSessionId) {
+            audioMuted = true
+            acknowledgementPending = false
+            binding.btnDismiss.text = "닫기"
             return
         }
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED) {
-            sendEmergencySms()
-        } else {
-            smsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
+        audioMuted = !state.sounding
+        acknowledgementPending = state.ackPending
+        acknowledgementFailure = state.error
+        binding.btnDismiss.text = when {
+            state.sounding -> getString(R.string.alert_dismiss)
+            state.ackPending -> "소리 중지됨 · 닫기"
+            state.error != null -> "중지 확인 재시도"
+            else -> "닫기"
         }
-    }
-
-    private fun sendEmergencySms() {
-        runCatching {
-            val manager = SmsManager.getDefault()
-            ContactLocalStore.load(this).forEach { contact ->
-                manager.sendTextMessage(contact.phone, null, contact.message, null, null)
-            }
-        }.onFailure {
-            Toast.makeText(this, "긴급 SMS를 발송하지 못했습니다.", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    private fun stopPhysicalAlert() {
-        mediaPlayer?.runCatching {
-            if (isPlaying) stop()
-            release()
-        }
-        mediaPlayer = null
-        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            getSystemService(VibratorManager::class.java).defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            getSystemService(VIBRATOR_SERVICE) as Vibrator
-        }
-        vibrator.cancel()
+        binding.tvAlertDescription.text = (DetectionForegroundService.latestDetection?.sample?.statusText().orEmpty()) +
+            (if (state.sounding) "\n경보음을 멈추려면 ‘경보 중지’를 눌러주세요." else "\n경보음은 중지되었습니다.") +
+            (if (state.ackPending) "\n서버 중지 확인은 화면을 닫아도 재전송합니다." else "") +
+            state.error?.let { "\n$it" }.orEmpty()
     }
 
     // ─────────────────────────────────────────
@@ -385,53 +312,13 @@ class AlertOverlayActivity : AppCompatActivity() {
     }
 
     private fun stopAndAcknowledgeAlarm() {
-        audioMuted = true
-        stopPhysicalAlert()
-        DetectionForegroundService.markAlarmStopped(alertSessionId)
-        DetectionForegroundService.cancelAlertNotifications(this)
-        if (currentStage !in 2..3 || alertSessionId <= 0 ||
-            SessionManager(this).getActiveSessionId() != alertSessionId) {
+        val state = DetectionForegroundService.alarmUiState
+        if (state.account != alertAccount || state.sessionId != alertSessionId ||
+            (!state.sounding && (state.error == null || state.ackPending))) {
             dismissAlert()
             return
         }
-        if (acknowledgementPending) return
-        acknowledgementPending = true
-        acknowledgementFailure = null
-        val stoppedRiskVersion = riskVersion
-        binding.btnDismiss.text = "중지 확인 전달 중…"
-        binding.tvAlertDescription.text = "경보음은 중지되었습니다.\n서버에 중지 확인을 전달하고 있습니다."
-        lifecycleScope.launch {
-            try {
-                val response = RetrofitClient.apiService(this@AlertOverlayActivity).acknowledgeAlarm(
-                    RetrofitClient.authHeader(SessionManager(this@AlertOverlayActivity).getToken().orEmpty()),
-                    DetectionRequest(alertSessionId)
-                )
-                check(response.status == "accepted") { "서버에서 중지 확인을 접수하지 못했습니다." }
-                if (audioMuted && riskVersion == stoppedRiskVersion) dismissAlert()
-            } catch (error: HttpException) {
-                // The server may have already recovered or stopped between the button and request.
-                if (error.code() in setOf(404, 409) && audioMuted && riskVersion == stoppedRiskVersion) {
-                    Toast.makeText(this@AlertOverlayActivity, "현재 서버 상태에서는 중지 확인이 필요하지 않습니다.", Toast.LENGTH_LONG).show()
-                    dismissAlert()
-                } else showAcknowledgementFailure(ApiErrorMessage.fromHttpException(error))
-            } catch (error: kotlinx.coroutines.CancellationException) {
-                throw error
-            } catch (error: Exception) {
-                showAcknowledgementFailure(ApiErrorMessage.fromThrowable(error, "경보 중지 확인"))
-            } finally {
-                acknowledgementPending = false
-                binding.btnDismiss.text = if (audioMuted && !isFinishing) "중지 확인 재시도" else getString(R.string.alert_dismiss)
-            }
-        }
-    }
-
-    private fun showAcknowledgementFailure(message: String) {
-        acknowledgementFailure = message
-        binding.tvAlertDescription.text = if (audioMuted) {
-            "경보음은 중지되었습니다.\n$message\n서버의 회복 확인을 위해 재시도해주세요. 뒤로가기로 화면을 닫을 수도 있습니다."
-        } else {
-            "새로운 위험 경보가 울리고 있습니다.\n$message\n경보를 중지한 뒤 다시 확인해주세요."
-        }
+        DetectionForegroundService.requestAlarmStop(this, alertSessionId, state.riskId)
     }
 
     private fun dismissAlert() {
@@ -439,7 +326,6 @@ class AlertOverlayActivity : AppCompatActivity() {
         handler.removeCallbacksAndMessages(null)
         binding.ivRotatingRing.clearAnimation()
         binding.viewFlash.clearAnimation()
-        stopPhysicalAlert()
         finish()
     }
 
@@ -447,11 +333,7 @@ class AlertOverlayActivity : AppCompatActivity() {
         if (receiverRegistered) unregisterReceiver(detectionReceiver)
         activeAlertCount--
         handler.removeCallbacksAndMessages(null)
-        stopPhysicalAlert()
         super.onDestroy()
     }
 
-    override fun onBackPressed() {
-        if (audioMuted && !acknowledgementPending) dismissAlert()
-    }
 }

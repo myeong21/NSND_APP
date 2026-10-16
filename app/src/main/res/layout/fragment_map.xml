@@ -89,7 +89,7 @@
                         android:layout_height="16dp"
                         android:contentDescription="달력"
                         android:src="@drawable/ic_calendar"
-                        android:tint="@color/text_secondary" />
+                        app:tint="@color/text_secondary" />
 
                     <TextView
                         android:id="@+id/tvMapDate"
@@ -112,7 +112,7 @@
                     android:contentDescription="새로고침"
                     android:padding="8dp"
                     android:src="@drawable/ic_refresh"
-                    android:tint="@color/text_secondary" />
+                    app:tint="@color/text_secondary" />
             </LinearLayout>
 
             <!-- 이벤트 통계 요약 (배지 3종) -->
@@ -250,7 +250,7 @@
                 android:layout_gravity="center"
                 android:contentDescription="모든 마커 한눈에 보기"
                 android:src="@drawable/ic_recenter"
-                android:tint="@color/text_primary" />
+                app:tint="@color/text_primary" />
         </com.google.android.material.card.MaterialCardView>
 
         <!-- 내 위치로 이동 FAB -->
@@ -273,7 +273,7 @@
                 android:layout_gravity="center"
                 android:contentDescription="내 위치로 이동"
                 android:src="@drawable/ic_my_location"
-                android:tint="@color/accent_primary" />
+                app:tint="@color/accent_primary" />
         </com.google.android.material.card.MaterialCardView>
     </LinearLayout>
 
@@ -339,7 +339,7 @@
                     android:contentDescription="닫기"
                     android:padding="6dp"
                     android:src="@drawable/ic_close"
-                    android:tint="@color/text_secondary" />
+                    app:tint="@color/text_secondary" />
             </LinearLayout>
 
             <View

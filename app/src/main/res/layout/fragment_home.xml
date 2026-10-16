@@ -354,7 +354,7 @@
                         android:layout_gravity="center"
                         android:contentDescription="시스템 준비"
                         android:src="@drawable/ic_status_checking"
-                        android:tint="@color/accent_primary" />
+                        app:tint="@color/accent_primary" />
                 </FrameLayout>
 
                 <LinearLayout
@@ -403,7 +403,7 @@
                     android:contentDescription="서버 상태 새로고침"
                     android:padding="10dp"
                     android:src="@drawable/ic_refresh"
-                    android:tint="@color/accent_primary" />
+                    app:tint="@color/accent_primary" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

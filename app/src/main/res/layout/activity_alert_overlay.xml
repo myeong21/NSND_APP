@@ -67,7 +67,7 @@
                     android:layout_gravity="center"
                     android:contentDescription="경고"
                     android:src="@drawable/ic_warning_triangle"
-                    android:tint="@color/alert_red" />
+                    app:tint="@color/alert_red" />
             </FrameLayout>
 
             <TextView

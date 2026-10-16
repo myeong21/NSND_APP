@@ -19,9 +19,9 @@ object LocalRecordDialogs {
             return
         }
         val labels = records.map {
-            "${it.receiptText()} · ${it.stage}단계\n${it.coordinatesText()} · ${it.id.take(8)}"
+            "${if (it.source == "recovered") "서버 기록 (복구)" else "앱 수신"} ${it.receiptText()} · ${it.stage}단계\n${it.coordinatesText()} · ${it.id.take(8)}"
         }.toTypedArray()
-        AlertDialog.Builder(context).setTitle("로컬 기록 ${records.size}건 · 앱 수신 시각")
+        AlertDialog.Builder(context).setTitle(if (records.any { it.source == "recovered" }) "로컬 기록 ${records.size}건 · 복구 이력 포함" else "로컬 기록 ${records.size}건 · 앱 수신 시각")
             .setItems(labels) { _, index -> onSelect(records[index]) }
             .setNegativeButton("닫기", null).show()
     }

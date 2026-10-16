@@ -69,7 +69,7 @@
             android:contentDescription="@string/contact_edit"
             android:padding="8dp"
             android:src="@drawable/ic_edit"
-            android:tint="@color/accent_primary"
+            app:tint="@color/accent_primary"
             app:layout_constraintEnd_toStartOf="@id/btnDelete"
             app:layout_constraintTop_toTopOf="parent" />
 
@@ -81,7 +81,7 @@
             android:contentDescription="@string/contact_delete"
             android:padding="8dp"
             android:src="@drawable/ic_delete"
-            android:tint="@color/alert_red"
+            app:tint="@color/alert_red"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 

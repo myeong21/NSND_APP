@@ -13,7 +13,7 @@
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="20dp"
         android:layout_marginTop="8dp"
-        android:text="3단계 졸음 감지 시 등록된 연락처에 메시지를 보냅니다."
+        android:text="자동 SMS를 켜면 새 3단계 사건마다 등록된 연락처에 발송을 요청합니다."
         android:textColor="@color/text_secondary"
         android:textSize="13sp"
         app:layout_constraintEnd_toEndOf="parent"
@@ -51,7 +51,7 @@
                     android:layout_gravity="center"
                     android:contentDescription="자동 발송 조건"
                     android:src="@drawable/ic_sms"
-                    android:tint="@color/accent_primary" />
+                    app:tint="@color/accent_primary" />
             </FrameLayout>
             <LinearLayout
                 android:layout_width="0dp"
@@ -70,12 +70,46 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="졸음 3단계가 감지되면 자동으로 SMS를 발송합니다."
+                    android:text="연락처와 SMS 권한이 필요합니다. 전송 결과는 발송 이력에서 확인하세요."
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp" />
             </LinearLayout>
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
+
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/switchAutoSms"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="20dp"
+        android:text="자동 SMS 사용"
+        android:textColor="@color/text_primary"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/cardContactGuide" />
+
+    <TextView
+        android:id="@+id/tvSmsReadiness"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="20dp"
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/switchAutoSms" />
+
+    <Button
+        android:id="@+id/btnSyncRecords"
+        style="@style/Widget.NSND.Button.Secondary"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="8dp"
+        android:text="기록 동기화 상태"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvSmsReadiness" />
 
     <TextView
         android:id="@+id/tvContactListLabel"
@@ -87,7 +121,7 @@
         android:textAppearance="@style/TextAppearance.NSND.Title"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/cardContactGuide" />
+        app:layout_constraintTop_toBottomOf="@id/btnSyncRecords" />
 
     <TextView
         android:id="@+id/tvContactEmpty"
@@ -101,7 +135,7 @@
         android:textColor="@color/text_hint"
         android:textSize="14sp"
         android:visibility="gone"
-        app:layout_constraintBottom_toTopOf="@id/layoutContactActions"
+        app:layout_constraintBottom_toTopOf="@id/btnSmsHistory"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tvContactListLabel" />
@@ -114,11 +148,23 @@
         android:paddingHorizontal="16dp"
         android:paddingTop="10dp"
         android:paddingBottom="12dp"
-        app:layout_constraintBottom_toTopOf="@id/layoutContactActions"
+        app:layout_constraintBottom_toTopOf="@id/btnSmsHistory"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tvContactListLabel"
         tools:listitem="@layout/item_contact_card" />
+
+    <Button
+        android:id="@+id/btnSmsHistory"
+        style="@style/Widget.NSND.Button.Secondary"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="8dp"
+        android:text="@string/sms_history"
+        app:layout_constraintBottom_toTopOf="@id/layoutContactActions"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
 
     <LinearLayout
         android:id="@+id/layoutContactActions"

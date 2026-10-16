@@ -153,6 +153,15 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <TextView
+                android:id="@+id/tvObservationStats"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:lineSpacingMultiplier="1.25"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
             <!-- 통계 요약 그리드 -->
             <LinearLayout
                 android:layout_width="match_parent"

@@ -20,6 +20,11 @@ object DetectionMessageParser {
             json.optBoolean("recovery_pending"), number("recovery_seconds"),
             json.optBoolean("risk_latched"), json.optBoolean("new_drowsiness_event"),
             json.optBoolean("emergency_condition"), optionalBoolean("alarm_acknowledged"),
-            optionalBoolean("alarm_ack_required"), (json.opt("recent_event_count") as? Number)?.toInt())
+            optionalBoolean("alarm_ack_required"), (json.opt("recent_event_count") as? Number)?.toInt(),
+            json.optString("event_id").takeIf { it.matches(Regex("[0-9a-fA-F-]{36}")) },
+            runCatching { java.time.Instant.parse(json.optString("detected_at")).toEpochMilli() }.getOrNull(),
+            json.optString("episode_id").takeIf { it.matches(Regex("[0-9a-fA-F-]{36}")) },
+            json.optString("risk_id").takeIf { it.matches(Regex("[0-9a-fA-F-]{36}")) },
+            json.optString("storage_error").takeIf { it.isNotBlank() && it != "null" })
     }.getOrNull()
 }

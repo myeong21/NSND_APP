@@ -13,7 +13,8 @@ data class CurrentSessionResponse(
     val id: Int,
     val user_id: Int,
     val started_at: String,
-    val ended_at: String?
+    val ended_at: String?,
+    val distance_meters: Double = 0.0
 )
 
 data class DetectionStatusResponse(

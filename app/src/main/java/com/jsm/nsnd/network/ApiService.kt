@@ -15,16 +15,41 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Path
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Query
 
 interface ApiService {
+
+    @GET("detection/events")
+    suspend fun recoverEvents(@Header("Authorization") token: String, @Query("after") after: Long,
+        @Query("limit") limit: Int = 100): com.jsm.nsnd.network.model.RecoveryPage
+
+    @GET("contacts/sms-settings")
+    suspend fun getSmsSettings(@Header("Authorization") token: String): com.jsm.nsnd.network.model.SmsSettings
+
+    @PUT("contacts/sms-settings")
+    suspend fun updateSmsSettings(@Header("Authorization") token: String,
+        @Body body: com.jsm.nsnd.network.model.SmsSettingsUpdate): com.jsm.nsnd.network.model.SmsSettings
+
+    @PUT("detection/events/{eventId}/location")
+    suspend fun updateEventLocation(
+        @Header("Authorization") token: String, @Path("eventId") eventId: String,
+        @Body body: com.jsm.nsnd.service.EventLocationRequest,
+    )
+
+    @PUT("sessions/{sessionId}/distance")
+    suspend fun updateSessionDistance(
+        @Header("Authorization") token: String, @Path("sessionId") sessionId: Int,
+        @Body body: com.jsm.nsnd.service.SessionDistanceRequest,
+    ): com.jsm.nsnd.network.model.DistanceSaved
 
     @GET("health")
     suspend fun healthCheck(): HealthResponse
 
     @GET("report/summary")
     suspend fun getReportSummary(
-        @Header("Authorization") token: String
+        @Header("Authorization") token: String,
+        @Query("utc_offset_minutes") utcOffsetMinutes: Int = java.time.ZonedDateTime.now().offset.totalSeconds / 60
     ): ReportSummaryResponse
 
     @GET("report/by-date")
@@ -58,7 +83,8 @@ interface ApiService {
     @GET("report/detail/{sessionId}")
     suspend fun getReportDetail(
         @Header("Authorization") token: String,
-        @Path("sessionId") sessionId: Int
+        @Path("sessionId") sessionId: Int,
+        @Query("utc_offset_minutes") utcOffsetMinutes: Int = java.time.ZonedDateTime.now().offset.totalSeconds / 60
     ): ReportSummaryResponse
 
     @POST("sessions/end")

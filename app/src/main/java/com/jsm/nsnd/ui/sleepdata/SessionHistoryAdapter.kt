@@ -63,7 +63,7 @@ class SessionHistoryAdapter(
             "danger" -> "위험"
             else -> item.grade
         }
-        holder.binding.tvSafetyBadge.text = "${item.safety_score}점 $gradeText"
+        holder.binding.tvSafetyBadge.text = "참고 ${item.safety_score}점 · $gradeText"
 
         when (item.grade) {
             "danger" -> {
@@ -80,7 +80,7 @@ class SessionHistoryAdapter(
             }
         }
 
-        if (item.total_drowsy_count == 0) {
+        if (item.valid_observation_seconds <= 0) {
             holder.binding.tvSafetyBadge.text = "판정 자료 부족"
             holder.binding.tvSafetyBadge.setBackgroundResource(R.drawable.bg_badge_warn)
             holder.binding.tvSafetyBadge.setTextColor(ContextCompat.getColor(context, R.color.status_warn))
@@ -88,10 +88,11 @@ class SessionHistoryAdapter(
 
         // 주행 시간
         val duration = item.duration_minutes ?: 0
-        holder.binding.tvSessionDuration.text = "${duration}분 주행"
+        holder.binding.tvSessionDuration.text = "${duration}분 주행 · " +
+            String.format(java.util.Locale.US, "%.2f km", item.distance_meters / 1000.0)
 
         // 졸음 횟수
-        holder.binding.tvDrowsyCount.text = "졸음 ${item.total_drowsy_count}회"
+        holder.binding.tvDrowsyCount.text = "독립 사건 ${item.independent_event_count?.let { "${it}회" } ?: "자료 없음"} · 단계 상승 ${item.total_drowsy_count}건"
 
         holder.itemView.setOnClickListener {
             onItemClick(row)

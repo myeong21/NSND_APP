@@ -146,7 +146,8 @@ class SessionDetailBottomSheetFragment : BottomSheetDialogFragment() {
 
         val dateText = com.jsm.nsnd.ui.common.ServerTime.display(data.started_at)
         val durationText = "${data.duration_minutes ?: 0}분 주행"
-        b.tvDetailSubtitle.text = "서버 통계 · $dateText · $durationText"
+        val distanceText = String.format(java.util.Locale.US, "%.2f km", data.distance_meters / 1000.0)
+        b.tvDetailSubtitle.text = "서버 통계 · $dateText · $durationText · $distanceText"
 
         // 안전 점수 링뷰 및 점수
         b.tvDetailScore.text = data.safety_score.toString()
@@ -158,7 +159,7 @@ class SessionDetailBottomSheetFragment : BottomSheetDialogFragment() {
             "danger" -> "위험"
             else -> data.grade
         }
-        b.tvDetailGrade.text = gradeText
+        b.tvDetailGrade.text = "$gradeText · 참고"
         when (data.grade) {
             "danger" -> {
                 b.tvDetailGrade.setBackgroundResource(R.drawable.bg_badge_danger)
@@ -174,21 +175,21 @@ class SessionDetailBottomSheetFragment : BottomSheetDialogFragment() {
             }
         }
 
-        b.tvDetailSummary.text = when (data.grade) {
-            "safe" -> "전반적으로 안정적인 주행을 유지했습니다."
-            "caution" -> "간헐적인 졸음 징후가 관측되었습니다. 충분한 휴식이 필요합니다."
-            else -> "고위험 졸음이 감지되었습니다. 즉시 안전한 장소에서 휴식을 취하세요."
-        }
+        b.tvDetailSummary.text = "단계 상승 기록으로 계산한 참고 점수입니다. 유효 관측 시간과 함께 확인하세요."
 
-        if (data.total_drowsy_count == 0) {
+        if (data.valid_observation_seconds <= 0) {
             b.tvDetailScore.text = "--"
             b.detailSafetyRing.setScore(0, "unknown")
             b.tvDetailGrade.text = "판정 자료 부족"
             b.tvDetailGrade.setBackgroundResource(R.drawable.bg_badge_warn)
             b.tvDetailGrade.setTextColor(ContextCompat.getColor(requireContext(), R.color.status_warn))
-            b.tvDetailSummary.text = "감지 로그가 없어 안전 상태를 판정할 수 없습니다."
+            b.tvDetailSummary.text = "유효 관측 시간 자료가 없어 안전 상태를 판정할 수 없습니다."
         }
 
+        b.tvObservationStats.text = ObservationPresentation.describe(
+            data.independent_event_count, data.valid_observation_seconds, data.unavailable_observation_seconds,
+            data.risk_observation_seconds, data.observation_coverage, data.independent_events_per_hour,
+            data.episode_peak_level)
         // 단계별 통계
         b.tvDetailLevel1.text = "${data.level1_count}회"
         b.tvDetailLevel2.text = "${data.level2_count}회"

@@ -9,6 +9,7 @@ class SessionManager(private val context: Context) {
 
     fun saveToken(token: String) {
         prefs.edit().putString("access_token", token).apply()
+        com.jsm.nsnd.service.RecordSyncService.schedule(context, recover = true)
     }
 
     fun getToken(): String? {
@@ -20,6 +21,7 @@ class SessionManager(private val context: Context) {
     }
 
     fun clear() {
+        com.jsm.nsnd.service.RecordSyncService.cancel(context)
         context.applicationContext.stopService(android.content.Intent(context, com.jsm.nsnd.service.DetectionForegroundService::class.java))
         com.jsm.nsnd.service.LocationTracker.stopAllTracking()
         prefs.edit()
@@ -30,6 +32,7 @@ class SessionManager(private val context: Context) {
 
     fun saveActiveSessionId(sessionId: Int) {
         prefs.edit().putInt("active_session_id", sessionId).apply()
+        com.jsm.nsnd.service.LocationTracker.restoreSession(context)
     }
 
     fun getActiveSessionId(): Int = prefs.getInt("active_session_id", -1)
@@ -38,6 +41,7 @@ class SessionManager(private val context: Context) {
         prefs.edit().remove("active_session_id").apply()
         context.applicationContext.stopService(android.content.Intent(context, com.jsm.nsnd.service.DetectionForegroundService::class.java))
         com.jsm.nsnd.service.LocationTracker.stopAllTracking()
+        com.jsm.nsnd.service.RecordSyncService.schedule(context, recover = true)
     }
 
     fun isLoggedIn(): Boolean {
@@ -63,6 +67,8 @@ class SessionManager(private val context: Context) {
 
     suspend fun clearAfterWithdrawal() {
         val account = getDetectionAccountKey()
+        account?.let { com.jsm.nsnd.data.local.AlarmStateStore.clearAccount(context,it) }
+        com.jsm.nsnd.ui.contact.SmsSettingsStore.disableLocally(context)
         com.jsm.nsnd.ui.contact.ContactLocalStore.clearAccount(context)
         clear()
         account?.let { com.jsm.nsnd.data.local.LocalDetectionStore.get(context).deleteAccount(it) }

@@ -9,7 +9,9 @@ data class DetectionSample(
     val recoverySeconds: Double? = null, val riskLatched: Boolean = false,
     val newDrowsinessEvent: Boolean = false, val emergencyCondition: Boolean = false,
     val alarmAcknowledged: Boolean? = null, val alarmAckRequired: Boolean? = null,
-    val recentEventCount: Int? = null
+    val recentEventCount: Int? = null,
+    val serverEventId: String? = null, val serverDetectedAtMs: Long? = null,
+    val episodeId: String? = null, val riskId: String? = null, val storageError: String? = null
 ) {
     fun statusText(): String = when (state) {
         "CALIBRATING" -> "눈을 뜨고 정면을 보세요 · 개인 보정 ${((calibrationProgress ?: 0.0) * 100).toInt()}%"

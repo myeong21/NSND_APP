@@ -12,6 +12,7 @@ import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.activity.OnBackPressedCallback
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
@@ -82,6 +83,17 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         sessionManager = SessionManager(this)
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (binding.drawerLayout.isDrawerOpen(binding.sidebarLayout)) {
+                    binding.drawerLayout.closeDrawer(binding.sidebarLayout)
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
+                }
+            }
+        })
 
         setupBottomNavigationInsets()
         setupNavigation()
@@ -365,14 +377,6 @@ class MainActivity : AppCompatActivity() {
     // ─────────────────────────────────────────
     // 뒤로가기 시 사이드바 닫기
     // ─────────────────────────────────────────
-    override fun onBackPressed() {
-        if (binding.drawerLayout.isDrawerOpen(binding.sidebarLayout)) {
-            binding.drawerLayout.closeDrawer(binding.sidebarLayout)
-        } else {
-            super.onBackPressed()
-        }
-    }
-
     // 테마 모드 열거형
     private enum class ThemeMode { SYSTEM, LIGHT, DARK }
 }

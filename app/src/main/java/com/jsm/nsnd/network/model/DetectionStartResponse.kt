@@ -10,5 +10,6 @@ data class DetectionStartResponse(
 )
 
 data class DetectionRequest(
-    val session_id: Int
+    val session_id: Int,
+    val risk_id: String? = null
 )

@@ -359,7 +359,7 @@ class SleepDataFragment : Fragment() {
             "danger" -> "위험"
             else -> data.grade
         }
-        b.tvSafetyGrade.text = gradeText
+        b.tvSafetyGrade.text = "$gradeText · 참고"
         when (data.grade) {
             "danger" -> {
                 b.tvSafetyGrade.setBackgroundResource(R.drawable.bg_badge_danger)
@@ -375,7 +375,7 @@ class SleepDataFragment : Fragment() {
             }
         }
 
-        if (data.total_drowsy_count == 0) {
+        if (data.valid_observation_seconds <= 0) {
             b.tvSafetyScore.text = "--"
             b.safetyScoreRing.setScore(0, "unknown")
             b.tvSafetyGrade.text = "판정 자료 부족"
@@ -383,7 +383,11 @@ class SleepDataFragment : Fragment() {
             b.tvSafetyGrade.setTextColor(ContextCompat.getColor(requireContext(), R.color.status_warn))
         }
 
-        // 2. 통계 횟수
+        b.tvObservationStats.text = ObservationPresentation.describe(
+            data.independent_event_count, data.valid_observation_seconds, data.unavailable_observation_seconds,
+            data.risk_observation_seconds, data.observation_coverage, data.independent_events_per_hour,
+            data.episode_peak_level)
+        // 2. Stage-rise logs remain separate from independent episodes.
         b.tvTotalDrowsy.text = "${data.total_drowsy_count}회"
         b.tvLevel1Count.text = "${data.level1_count}회"
         b.tvLevel2Count.text = "${data.level2_count}회"
@@ -426,7 +430,7 @@ class SleepDataFragment : Fragment() {
         b.tvMapEventCount.text = "$source 위치 ${locations.size}건"
         b.btnLocalSleepRecords.text = "$source 기록 ${displayedMapRecords.size}건 · 위치 없음 ${displayedMapRecords.size - locations.size}건 · 목록 보기"
         b.tvMapEmpty.visibility = if (locations.isEmpty()) View.VISIBLE else View.GONE
-        b.tvEventSourceTitle.text = if (showServerRecords) "서버 감지 기록 · 서버 기록 시각" else "로컬 감지 기록 · 앱 수신 시각"
+        b.tvEventSourceTitle.text = if (showServerRecords) "서버 감지 기록 · 서버 기록 시각" else "기기 감지 기록 · 수신 기록과 서버 복구 이력"
         displayMapMarkers(locations)
         setupRecyclerView(displayedMapRecords.map {
             SleepEventItem("${it.timeLabel()} ${it.receiptText()}", it.coordinatesText() +

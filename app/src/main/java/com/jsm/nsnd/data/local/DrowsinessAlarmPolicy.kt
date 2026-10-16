@@ -8,14 +8,26 @@ class DrowsinessAlarmPolicy {
     private var previousNewEvent = false
     private var previousEmergency = false
     private var previousEventCount: Int? = null
+    private var previousRiskId: String? = null
+    private var mutedRiskId: String? = null
+
+    @Synchronized fun restoreMutedRisk(riskId: String?) { mutedRiskId = riskId }
 
     @Synchronized fun acknowledge() {
+        mutedRiskId = previousRiskId
         locallyStopped = true
         sawServerAcknowledgement = false
     }
 
     @Synchronized fun accept(sample: DetectionSample): Boolean {
         if (!sample.observationValid) return false
+        if (sample.riskId != null) {
+            val shouldAlert = sample.stage > 0 && sample.alertActive && sample.alarmAcknowledged != true &&
+                sample.riskId != mutedRiskId && sample.riskId != previousRiskId
+            previousRiskId = sample.riskId
+            previousStage = sample.stage
+            return shouldAlert
+        }
         if (sample.alarmAcknowledged == true) sawServerAcknowledgement = true
         val newRisk = (sample.newDrowsinessEvent && !previousNewEvent) ||
             (sample.emergencyCondition && !previousEmergency) ||

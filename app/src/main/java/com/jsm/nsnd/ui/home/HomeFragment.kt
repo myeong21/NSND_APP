@@ -673,6 +673,7 @@ class HomeFragment : Fragment() {
                 account != sessionManager.getDetectionAccountKey()) return
             currentSessionId = current.id
             sessionManager.saveActiveSessionId(currentSessionId)
+            LocationTracker.restoreSession(requireContext(), current.distance_meters)
 
             // 타이머 재개
             sessionStartTimeMs = com.jsm.nsnd.ui.common.ServerTime.millis(current.started_at) ?: System.currentTimeMillis()

@@ -35,18 +35,19 @@ class LoginActivity : AppCompatActivity() {
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
-        continueStartup()
+        reviewRuntimePermissions()
     }
 
     private val appSettingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
-        continueStartup()
+        reviewRuntimePermissions()
     }
 
     private val fullScreenSettingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
+        if (!canUseFullScreenAlert()) Toast.makeText(this, "전체 화면 경보가 제한됩니다. 알림 설정을 확인해주세요.", Toast.LENGTH_LONG).show()
         continueStartup()
     }
 
@@ -123,8 +124,8 @@ class LoginActivity : AppCompatActivity() {
             if (Manifest.permission.POST_NOTIFICATIONS in missing) add("백그라운드 경보 알림")
         }.joinToString(", ")
         AlertDialog.Builder(this)
-            .setTitle("필수 권한이 필요합니다")
-            .setMessage("NSND의 안전 기능을 사용하려면 다음 권한을 허용해야 합니다.\n\n$names")
+            .setTitle("사용할 수 없는 경보 기능")
+            .setMessage("다음 권한이 없어 해당 기능이 제한됩니다.\n\n$names\n\n설정에서 허용할 수 있습니다.")
             .setCancelable(false)
             .setPositiveButton("앱 설정 열기") { _, _ ->
                 appSettingsLauncher.launch(
@@ -133,12 +134,18 @@ class LoginActivity : AppCompatActivity() {
                     }
                 )
             }
-            .setNegativeButton("앱 종료") { _, _ -> finishAffinity() }
+            .setNegativeButton("제한된 상태로 계속") { _, _ -> checkFullScreenAlertPermission() }
             .show()
     }
 
     private fun checkFullScreenAlertPermission() {
-        continueStartup()
+        if (startupContinued) return
+        if (canUseFullScreenAlert()) continueStartup() else showFullScreenPermissionRequiredDialog()
+    }
+
+    private fun reviewRuntimePermissions() {
+        val missing = missingRuntimePermissions()
+        if (missing.isEmpty()) checkFullScreenAlertPermission() else showRuntimePermissionRequiredDialog(missing)
     }
 
     private fun canUseFullScreenAlert(): Boolean {
@@ -168,7 +175,7 @@ class LoginActivity : AppCompatActivity() {
                     continueStartup()
                 }
             }
-            .setNegativeButton("앱 종료") { _, _ -> finishAffinity() }
+            .setNegativeButton("나중에") { _, _ -> continueStartup() }
             .show()
     }
 
