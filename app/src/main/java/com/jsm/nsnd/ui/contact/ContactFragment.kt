@@ -16,7 +16,6 @@ import com.jsm.nsnd.databinding.FragmentContactBinding
 
 import android.Manifest
 import android.content.pm.PackageManager
-import com.jsm.nsnd.service.EmergencySmsSender
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 
@@ -60,15 +59,6 @@ class ContactFragment : Fragment() {
 
     private fun authHeader(): String = sessionManager.getAuthHeader()
 
-    private val smsPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) {
-                sendAllContacts()
-            } else {
-                Toast.makeText(requireContext(), "SMS 권한이 필요합니다", Toast.LENGTH_SHORT).show()
-            }
-        }
-
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -84,7 +74,6 @@ class ContactFragment : Fragment() {
         setupRecyclerView()
         replaceContacts(ContactLocalStore.load(requireContext()), saveCache = false)
         setupFab()
-        setupSendButton()
         binding.btnSmsHistory.setOnClickListener { SmsHistoryDialog.show(requireContext()) }
         binding.btnSmsPermission.setOnClickListener {
             automaticSmsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
@@ -319,15 +308,6 @@ class ContactFragment : Fragment() {
     }
 
     // ─────────────────────────────────────────
-    // 임시 발송 추가
-    // ─────────────────────────────────────────
-    private fun setupSendButton() {
-        binding.btnSendContacts.setOnClickListener {
-            requestSmsPermissionAndSend()
-        }
-    }
-
-    // ─────────────────────────────────────────
     // 연락처 추가 / 편집 다이얼로그
     // ─────────────────────────────────────────
     private fun showContactDialog(existingItem: ContactItem?, position: Int) {
@@ -522,27 +502,6 @@ class ContactFragment : Fragment() {
                     showServerError(ApiErrorMessage.fromThrowable(error, "연락처 삭제"))
                 }
             })
-    }
-
-    private fun requestSmsPermissionAndSend() {
-        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.SEND_SMS)
-            == PackageManager.PERMISSION_GRANTED
-        ) {
-            sendAllContacts()
-        } else {
-            smsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
-        }
-    }
-
-    private fun sendAllContacts() {
-        if (contactList.isEmpty()) {
-            Toast.makeText(requireContext(), "발송할 연락처가 없습니다", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val count = EmergencySmsSender.send(requireContext(),contactList.toList(),
-            "test:${java.util.UUID.randomUUID()}","테스트 발송")
-        Toast.makeText(requireContext(),"${count}개 발송 요청 · 결과는 SMS 발송 이력에서 확인하세요",Toast.LENGTH_LONG).show()
     }
 
     // ─────────────────────────────────────────

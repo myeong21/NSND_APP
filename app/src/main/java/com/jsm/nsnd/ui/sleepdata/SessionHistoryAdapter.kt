@@ -1,6 +1,7 @@
 package com.jsm.nsnd.ui.sleepdata
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
@@ -36,6 +37,7 @@ class SessionHistoryAdapter(
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val row = items[position]
+        holder.binding.tvSafetyBadge.visibility = View.VISIBLE
         if (row.server == null) {
             val records = row.local
             val first = records.minByOrNull { it.receivedAtMs }!!
@@ -81,9 +83,9 @@ class SessionHistoryAdapter(
         }
 
         if (item.valid_observation_seconds <= 0) {
-            holder.binding.tvSafetyBadge.text = "판정 자료 부족"
-            holder.binding.tvSafetyBadge.setBackgroundResource(R.drawable.bg_badge_warn)
-            holder.binding.tvSafetyBadge.setTextColor(ContextCompat.getColor(context, R.color.status_warn))
+            // Keep the drive in history without showing an unsupported safety grade.
+            holder.binding.tvSafetyBadge.text = ""
+            holder.binding.tvSafetyBadge.visibility = View.GONE
         }
 
         // 주행 시간
@@ -92,7 +94,9 @@ class SessionHistoryAdapter(
             String.format(java.util.Locale.US, "%.2f km", item.distance_meters / 1000.0)
 
         // 졸음 횟수
-        holder.binding.tvDrowsyCount.text = "독립 사건 ${item.independent_event_count?.let { "${it}회" } ?: "자료 없음"} · 단계 상승 ${item.total_drowsy_count}건"
+        holder.binding.tvDrowsyCount.text = item.independent_event_count?.let {
+            "독립 사건 ${it}회 · 단계 상승 ${item.total_drowsy_count}건"
+        } ?: "단계 상승 ${item.total_drowsy_count}건"
 
         holder.itemView.setOnClickListener {
             onItemClick(row)

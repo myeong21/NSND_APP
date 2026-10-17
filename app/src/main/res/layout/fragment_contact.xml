@@ -100,18 +100,6 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toBottomOf="@id/btnSmsPermission" />
 
-    <Button
-        android:id="@+id/btnSyncRecords"
-        style="@style/Widget.NSND.Button.Secondary"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="16dp"
-        android:layout_marginTop="8dp"
-        android:text="기록 동기화"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tvSmsReadiness" />
-
     <TextView
         android:id="@+id/tvContactListLabel"
         android:layout_width="0dp"
@@ -122,7 +110,7 @@
         android:textAppearance="@style/TextAppearance.NSND.Title"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/btnSyncRecords" />
+        app:layout_constraintTop_toBottomOf="@id/tvSmsReadiness" />
 
     <TextView
         android:id="@+id/tvContactEmpty"
@@ -180,13 +168,13 @@
         app:layout_constraintStart_toStartOf="parent">
 
         <Button
-            android:id="@+id/btnSendContacts"
+            android:id="@+id/btnSyncRecords"
             style="@style/Widget.NSND.Button.Secondary"
             android:layout_width="0dp"
             android:layout_height="54dp"
             android:layout_marginEnd="10dp"
             android:layout_weight="1"
-            android:text="테스트 발송"
+            android:text="기록 동기화"
             android:textSize="14sp" />
 
         <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton

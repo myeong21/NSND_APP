@@ -86,6 +86,9 @@
 
             <!-- 안전 점수 카드 -->
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardDetailScore"
+                android:visibility="gone"
+                tools:visibility="visible"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:cardBackgroundColor="@color/bg_card"
@@ -253,82 +256,6 @@
                         tools:text="0회" />
                 </LinearLayout>
             </LinearLayout>
-
-            <!-- 카카오맵 졸음 발생 위치 표시 카드 -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                app:cardBackgroundColor="@color/bg_card"
-                app:cardCornerRadius="20dp"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="0dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="sans-serif-medium"
-                        android:text="졸음 발생 위치 지도"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
-
-                    <TextView
-                        android:id="@+id/tvDetailMapDesc"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="11sp"
-                        tools:text="감지된 이벤트 1건의 위치를 표시합니다." />
-
-                    <!-- 카카오맵 뷰 -->
-                    <androidx.appcompat.widget.AppCompatSpinner
-                        android:id="@+id/spinnerRecordSource"
-                        android:layout_width="match_parent"
-                        android:layout_height="40dp"
-                        android:entries="@array/map_record_sources"
-                        android:contentDescription="지도 기록 출처 선택" />
-                    <TextView
-                        android:id="@+id/btnSessionLocalRecords"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:paddingVertical="10dp"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:text="로컬 기록 목록 보기"
-                        android:textColor="@color/accent_primary"
-                        android:textSize="12sp" />
-                    <FrameLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="200dp"
-                        android:layout_marginTop="10dp">
-
-                        <com.kakao.vectormap.MapView
-                            android:id="@+id/detailMapView"
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent" />
-
-                        <!-- 위치 데이터 없을 때 대체 뷰 -->
-                        <TextView
-                            android:id="@+id/tvDetailNoLocation"
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:background="@color/bg_surface"
-                            android:gravity="center"
-                            android:text="위치 데이터가 포함된 졸음 기록이 없습니다."
-                            android:textColor="@color/text_hint"
-                            android:textSize="12sp"
-                            android:visibility="gone" />
-                    </FrameLayout>
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>
