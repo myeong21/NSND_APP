@@ -44,10 +44,10 @@ object SmsSettingsStore {
     }
 
     fun readiness(context: Context): String = when {
-        ContactLocalStore.load(context).isEmpty() -> "3단계 위험 SMS는 필수 자동 발송입니다. 비상 연락처를 등록해주세요."
-        !context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) -> "필수 자동 발송 · 이 기기는 SMS 기능을 지원하지 않습니다."
+        ContactLocalStore.load(context).isEmpty() -> "발송 준비 필요 · 연락처 등록"
+        !context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) -> "SMS 미지원 기기"
         ContextCompat.checkSelfPermission(context,Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED ->
-            "필수 자동 발송 · SMS 권한이 없어 발송할 수 없습니다. 권한을 허용해주세요."
-        else -> "필수 자동 발송 · 새 3단계 사건마다 등록한 모든 연락처로 1회씩 요청합니다. 결과는 발송 이력에서 확인하세요."
+            "발송 불가 · SMS 권한 필요"
+        else -> "SMS 발송 준비됨 · 결과는 발송 이력에서 확인"
     }
 }

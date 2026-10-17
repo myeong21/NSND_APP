@@ -151,7 +151,7 @@ class AlertOverlayActivityTest {
                 scenario.recreate()
                 scenario.onActivity {
                     assertTrue(it.findViewById<TextView>(R.id.tvAlertDescription).text.contains("화면을 닫아도"))
-                    assertEquals("소리 중지됨 · 닫기",it.findViewById<TextView>(R.id.btnDismiss).text)
+                    assertEquals("닫기",it.findViewById<TextView>(R.id.btnDismiss).text)
                     it.findViewById<View>(R.id.btnDismiss).performClick()
                 }
                 val deadline = SystemClock.elapsedRealtime()+5000

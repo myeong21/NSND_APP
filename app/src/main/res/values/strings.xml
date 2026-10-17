@@ -33,16 +33,16 @@
     <!-- 홈 화면 -->
     <string name="home_co2_label">실내 CO₂ 농도</string>
     <string name="home_co2_unit">ppm</string>
-    <string name="home_ventilation_good">환기 상태 양호</string>
-    <string name="home_ventilation_warn">환기를 권장합니다</string>
-    <string name="home_ventilation_danger">즉시 환기하세요</string>
+    <string name="home_ventilation_good">환기 양호</string>
+    <string name="home_ventilation_warn">환기 권장</string>
+    <string name="home_ventilation_danger">즉시 환기</string>
     <string name="home_start_btn">작동 시작</string>
     <string name="home_stop_btn">작동 중지</string>
-    <string name="home_sleep_stage_label">현재 수면 단계</string>
+    <string name="home_sleep_stage_label">졸음 단계</string>
     <string name="home_sleep_stage_unit">단계</string>
     <string name="home_sleep_normal">정상</string>
-    <string name="home_event_label">감지 이벤트</string>
-    <string name="home_event_empty">감지된 이벤트가 없습니다</string>
+    <string name="home_event_label">최근 감지</string>
+    <string name="home_event_empty">감지 기록 없음</string>
     <string name="home_connecting">연결 중…</string>
     <string name="home_connected">연결됨</string>
     <string name="home_disconnected">연결 안됨</string>
@@ -56,16 +56,19 @@
 
     <!-- 연락 보내기 설정 -->
     <string name="contact_title">연락 보내기 설정</string>
-    <string name="contact_subtitle">3단계 감지 시 자동으로 SMS를 발송합니다</string>
+    <string name="contact_subtitle">비상 연락처와 SMS 메시지를 관리하세요.</string>
+    <string name="contact_auto_sms_title">3단계 SMS 자동 발송</string>
+    <string name="contact_auto_sms_description">새 위험마다 전체 발송 · 등록 후 1명 이상 유지</string>
     <string name="contact_name_hint">이름</string>
-    <string name="contact_phone_hint">연락처</string>
-    <string name="contact_message_hint">보낼 메시지 선택</string>
+    <string name="contact_phone_hint">전화번호</string>
+    <string name="contact_message_hint">보낼 메시지</string>
+    <string name="contact_dialog_hint">받는 사람과 메시지를 설정하세요.</string>
     <string name="contact_add">연락처 추가</string>
     <string name="contact_edit">편집</string>
     <string name="contact_delete">삭제</string>
     <string name="contact_save">저장</string>
     <string name="contact_cancel">취소</string>
-    <string name="contact_empty">연락처를 추가해주세요\n3단계 졸음 감지 시 자동으로 연락이 발송됩니다</string>
+    <string name="contact_empty">비상 연락처를 추가하세요</string>
     <string name="contact_min_warning">최소 1개의 연락처가 필요합니다</string>
 
     <!-- 자동 발송 메시지 선택지 -->

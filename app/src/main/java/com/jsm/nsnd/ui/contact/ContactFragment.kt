@@ -334,11 +334,6 @@ class ContactFragment : Fragment() {
         val dialog = Dialog(requireContext())
         val dialogBinding = DialogContactBinding.inflate(layoutInflater)
         dialog.setContentView(dialogBinding.root)
-        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-        dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.9).toInt(),
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
 
         // 편집 모드일 때 기존 값 채우기
         val isEditMode = existingItem != null
@@ -405,6 +400,15 @@ class ContactFragment : Fragment() {
         }
 
         dialog.show()
+        dialog.window?.apply {
+            setBackgroundDrawableResource(R.drawable.bg_contact_dialog)
+            addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            setDimAmount(0.45f)
+            setLayout(
+                (resources.displayMetrics.widthPixels * 0.9).toInt(),
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
     }
 
     private fun submitContact(

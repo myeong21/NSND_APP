@@ -737,16 +737,16 @@ class HomeFragment : Fragment() {
                 b.layoutServerStatusIcon.setBackgroundResource(R.drawable.bg_icon_blue)
                 b.ivServerStatus.setImageResource(R.drawable.ic_status_checking)
                 b.ivServerStatus.setColorFilter(requireContext().getColor(R.color.accent_primary))
-                b.tvSystemAvailability.text = "서버 연결 확인 중"
-                b.tvSystemAvailabilityDescription.text = "시스템 연결 상태를 확인하고 있습니다."
+                b.tvSystemAvailability.text = "연결 확인 중"
+                b.tvSystemAvailabilityDescription.text = "서버 응답 대기"
                 b.tvServerMeta.text = "$serverAddress · 확인 중"
             }
             ServerStatus.READY -> {
                 b.layoutServerStatusIcon.setBackgroundResource(R.drawable.bg_icon_safe)
                 b.ivServerStatus.setImageResource(R.drawable.ic_status_online)
                 b.ivServerStatus.setColorFilter(requireContext().getColor(R.color.status_safe))
-                b.tvSystemAvailability.text = "시스템 준비 완료"
-                b.tvSystemAvailabilityDescription.text = "운전을 시작하면 안전 모니터링이 준비됩니다."
+                b.tvSystemAvailability.text = "감지 준비 완료"
+                b.tvSystemAvailabilityDescription.text = "운전 시작 후 감지를 켜세요."
                 b.tvServerMeta.text = "$serverAddress · $checkedTime 확인"
                 if (drivingState == DrivingState.IDLE) b.btnStart.isEnabled = true
             }
@@ -754,12 +754,12 @@ class HomeFragment : Fragment() {
                 b.layoutServerStatusIcon.setBackgroundResource(R.drawable.bg_icon_danger)
                 b.ivServerStatus.setImageResource(R.drawable.ic_status_offline)
                 b.ivServerStatus.setColorFilter(requireContext().getColor(R.color.status_warn))
-                b.tvSystemAvailability.text = "시스템 점검 필요"
+                b.tvSystemAvailability.text = "감지 준비 필요"
                 val health = healthResponse
                 b.tvSystemAvailabilityDescription.text = when {
-                    health?.models_ready != true -> "AI 감지 모델이 준비되지 않았습니다."
-                    health.camera_available != true -> "카메라를 사용할 수 없습니다."
-                    else -> "감지 시스템 준비 상태를 확인해주세요."
+                    health?.models_ready != true -> "모델 준비 필요"
+                    health.camera_available != true -> "카메라 연결 확인"
+                    else -> "감지 상태 확인"
                 }
                 b.tvServerMeta.text = "$serverAddress · $checkedTime 점검 필요"
             }
@@ -768,7 +768,7 @@ class HomeFragment : Fragment() {
                 b.ivServerStatus.setImageResource(R.drawable.ic_status_offline)
                 b.ivServerStatus.setColorFilter(requireContext().getColor(R.color.status_danger))
                 b.tvSystemAvailability.text = "서버 연결 안 됨"
-                b.tvSystemAvailabilityDescription.text = "서버 주소와 네트워크를 확인해주세요."
+                b.tvSystemAvailabilityDescription.text = "서버 주소·네트워크 확인"
                 b.tvServerMeta.text = "$serverAddress · $checkedTime 실패"
             }
         }
@@ -784,7 +784,7 @@ class HomeFragment : Fragment() {
                 b.tvStageStatus.text = getString(R.string.home_sleep_normal)
                 b.tvStageStatus.setBackgroundResource(R.drawable.bg_badge_safe)
                 b.tvStageStatus.setTextColor(requireContext().getColor(R.color.status_safe))
-                b.tvLiveStatusText.text = "● 실시간 AI 졸음 감지 중"
+                b.tvLiveStatusText.text = "실시간 감지 중"
             }
             1 -> {
                 b.tvStageNumber.setTextColor(requireContext().getColor(R.color.stage_1))

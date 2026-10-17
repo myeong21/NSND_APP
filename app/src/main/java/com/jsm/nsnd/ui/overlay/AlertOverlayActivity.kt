@@ -31,6 +31,7 @@ class AlertOverlayActivity : AppCompatActivity() {
     private var audioMuted = false
     private var acknowledgementPending = false
     private var acknowledgementFailure: String? = null
+    private var closeAfterStop = false
     private var receiverRegistered = false
 
     private val detectionReceiver = object : BroadcastReceiver() {
@@ -84,6 +85,7 @@ class AlertOverlayActivity : AppCompatActivity() {
             SessionManager(this).getActiveSessionId())
         audioMuted = savedInstanceState?.getBoolean("audio_muted") ?: false
         acknowledgementFailure = savedInstanceState?.getString("acknowledgement_failure")
+        closeAfterStop = savedInstanceState?.getBoolean("close_after_stop") ?: false
         ContextCompat.registerReceiver(this, detectionReceiver, IntentFilter().apply {
             addAction(DetectionForegroundService.ACTION_ALARM_STATE)
             addAction(DetectionForegroundService.ACTION_DETECTION_EVENT)
@@ -149,6 +151,7 @@ class AlertOverlayActivity : AppCompatActivity() {
         outState.putInt("stage", currentStage)
         outState.putBoolean("audio_muted", audioMuted)
         outState.putString("acknowledgement_failure", acknowledgementFailure)
+        outState.putBoolean("close_after_stop", closeAfterStop)
         super.onSaveInstanceState(outState)
     }
 
@@ -287,9 +290,15 @@ class AlertOverlayActivity : AppCompatActivity() {
         audioMuted = !state.sounding
         acknowledgementPending = state.ackPending
         acknowledgementFailure = state.error
+        // Close after the service stops local sound/vibration. Server ACK retries
+        // belong to the service and must not require a second tap on this screen.
+        if (closeAfterStop && state.muted && !state.sounding) {
+            dismissAlert()
+            return
+        }
         binding.btnDismiss.text = when {
             state.sounding -> getString(R.string.alert_dismiss)
-            state.ackPending -> "소리 중지됨 · 닫기"
+            state.ackPending -> "닫기"
             state.error != null -> "중지 확인 재시도"
             else -> "닫기"
         }
@@ -304,7 +313,6 @@ class AlertOverlayActivity : AppCompatActivity() {
     // ─────────────────────────────────────────
     private fun setupDismissButton() {
         binding.btnDismiss.visibility = View.VISIBLE
-        if (audioMuted) binding.btnDismiss.text = "중지 확인 재시도"
 
         binding.btnDismiss.setOnClickListener {
             stopAndAcknowledgeAlarm()
@@ -318,6 +326,7 @@ class AlertOverlayActivity : AppCompatActivity() {
             dismissAlert()
             return
         }
+        closeAfterStop = true
         DetectionForegroundService.requestAlarmStop(this, alertSessionId, state.riskId)
     }
 

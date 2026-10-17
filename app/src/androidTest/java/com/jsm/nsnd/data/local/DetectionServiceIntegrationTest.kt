@@ -92,7 +92,7 @@ class DetectionServiceIntegrationTest {
         }
     }
 
-    @Test fun serviceRetriesScopedAckAfterScreenClosesAndRejectsStaleStopCommands() {
+    @Test fun oneTapStopsAlarmClosesScreenAndServiceRetriesAckAndRejectsStaleStopCommands() {
         withAlarmFixture { fixture, scenario ->
             val context = InstrumentationRegistry.getInstrumentation().targetContext
             val first = java.util.UUID.randomUUID().toString()
@@ -101,7 +101,7 @@ class DetectionServiceIntegrationTest {
             await { DetectionForegroundService.alarmUiState.sounding }
             scenario.onActivity { it.findViewById<View>(R.id.btnDismiss).performClick() }
             await { !DetectionForegroundService.alarmUiState.sounding && DetectionForegroundService.alarmUiState.ackPending }
-            scenario.close()
+            await { scenario.state == androidx.lifecycle.Lifecycle.State.DESTROYED }
             await { fixture.acknowledgements.size >= 2 }
             assertTrue(fixture.acknowledgements.first().contains("Bearer test."))
             assertTrue(fixture.acknowledgements.first().contains("\"risk_id\":\"$first\""))

@@ -141,7 +141,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:fontFamily="sans-serif-medium"
-                        android:text="현재 운전 세션"
+                        android:text="주행 정보"
                         android:textColor="@color/text_primary"
                         android:textSize="15sp" />
 
@@ -204,7 +204,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="주행 거리 (GPS)"
+                            android:text="주행 거리"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
 
@@ -313,7 +313,7 @@
                     android:fontFamily="sans-serif-medium"
                     android:paddingHorizontal="10dp"
                     android:paddingVertical="6dp"
-                    android:text="● 실시간 AI 졸음 감지 중"
+                    android:text="실시간 감지 중"
                     android:textColor="@color/status_safe"
                     android:textSize="12sp"
                     app:layout_constraintBottom_toBottomOf="@id/tvStageStatus"
@@ -369,7 +369,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:fontFamily="sans-serif-medium"
-                        android:text="서버 연결 확인 중"
+                        android:text="연결 확인 중"
                         android:textColor="@color/text_primary"
                         android:textSize="15sp" />
 
@@ -378,7 +378,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="3dp"
-                        android:text="시스템 연결 상태를 확인하고 있습니다."
+                        android:text="서버 응답 대기"
                         android:textColor="@color/text_secondary"
                         android:textSize="12sp" />
 
