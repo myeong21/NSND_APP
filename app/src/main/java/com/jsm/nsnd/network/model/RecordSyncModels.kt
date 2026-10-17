@@ -11,4 +11,3 @@ data class RecoveredEvent(
 data class RecoveryPage(val next_cursor: Long, val has_more: Boolean, val events: List<RecoveredEvent>)
 data class DistanceSaved(val distance_meters: Double)
 data class SmsSettings(val enabled: Boolean, val contact_count: Int, val contacts: List<ContactDto>)
-data class SmsSettingsUpdate(val enabled: Boolean)

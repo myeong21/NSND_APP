@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -20,6 +21,8 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.jsm.nsnd.R
 import com.jsm.nsnd.data.api.ApiClient
@@ -45,6 +48,7 @@ import com.jsm.nsnd.ui.overlay.AlertOverlayActivity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -866,11 +870,82 @@ class HomeFragment : Fragment() {
     }
 
     private fun setupCo2Display() {
-        val dummyCo2Value = 1240
-        val dummyTime = "09:41"
-        binding.tvCo2Value.text = String.format("%,d", dummyCo2Value)
-        binding.tvCo2Time.text = "측정시각 $dummyTime"
-        updateCo2Status(dummyCo2Value)
+        showCo2Unavailable(R.string.co2_connecting)
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                var expiry: Job? = null
+                val appContext = requireContext().applicationContext
+                try {
+                    while (isActive) {
+                        val requestToken = token
+                        val requestServer = ServerConfig.getHttpBaseUrl(appContext)
+                        if (requestToken.isBlank()) {
+                            showCo2Unavailable(R.string.co2_login_required)
+                            return@repeatOnLifecycle
+                        }
+                        val started = SystemClock.elapsedRealtime()
+                        try {
+                            val response = withTimeout(4_000L) {
+                                RetrofitClient.apiService(appContext).getDeviceTelemetry(
+                                    RetrofitClient.authHeader(requestToken)
+                                )
+                            }
+                            expiry?.cancel()
+                            if (token != requestToken || ServerConfig.getHttpBaseUrl(appContext) != requestServer) {
+                                showCo2Unavailable(R.string.co2_connecting)
+                            } else {
+                                val elapsed = SystemClock.elapsedRealtime() - started
+                                val reading = response.freshReading(elapsed)
+                                if (reading != null) {
+                                    _binding?.tvCo2Value?.text = String.format(Locale.getDefault(), "%,d", reading.ppm)
+                                    _binding?.tvCo2Time?.text = getString(R.string.co2_received_age,
+                                        ((10_000 - reading.remainingFreshMillis) / 1000).toInt())
+                                    updateCo2Status(reading.ppm)
+                                    expiry = launch {
+                                        delay(reading.remainingFreshMillis)
+                                        showCo2Unavailable(R.string.co2_waiting)
+                                    }
+                                } else {
+                                    showCo2Unavailable(when {
+                                        !response.arduino_enabled -> R.string.co2_not_configured
+                                        !response.arduino_connected -> R.string.co2_disconnected
+                                        else -> R.string.co2_waiting
+                                    })
+                                }
+                            }
+                        } catch (e: TimeoutCancellationException) {
+                            expiry?.cancel()
+                            showCo2Unavailable(R.string.co2_server_unavailable)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: HttpException) {
+                            expiry?.cancel()
+                            if (token == requestToken && ServerConfig.getHttpBaseUrl(appContext) == requestServer && e.code() == 401) {
+                                handleSessionExpired()
+                                return@repeatOnLifecycle
+                            }
+                            showCo2Unavailable(if (e.code() == 404) R.string.co2_api_unavailable else R.string.co2_server_unavailable)
+                        } catch (e: Exception) {
+                            expiry?.cancel()
+                            showCo2Unavailable(R.string.co2_server_unavailable)
+                        }
+                        delay(2_000L)
+                    }
+                } finally {
+                    expiry?.cancel()
+                    showCo2Unavailable(R.string.co2_connecting)
+                }
+            }
+        }
+    }
+
+    private fun showCo2Unavailable(reason: Int) {
+        val b = _binding ?: return
+        b.tvCo2Value.text = "—"
+        b.tvCo2Status.setText(R.string.co2_no_reading)
+        b.tvCo2Status.setBackgroundResource(R.drawable.bg_badge_warn)
+        b.tvCo2Status.setTextColor(ContextCompat.getColor(b.root.context, R.color.text_secondary))
+        b.tvCo2Time.setText(reason)
     }
 
     private fun updateCo2Status(ppm: Int) {

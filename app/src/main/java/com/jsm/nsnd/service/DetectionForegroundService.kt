@@ -25,6 +25,7 @@ import com.jsm.nsnd.data.local.LocationSnapshot
 import com.jsm.nsnd.data.local.DrowsinessAlarmPolicy
 import com.jsm.nsnd.data.local.AlarmUiState
 import com.jsm.nsnd.data.local.AlarmStateStore
+import com.jsm.nsnd.data.local.AutomaticSmsPolicy
 import com.jsm.nsnd.ui.contact.SmsSettingsStore
 import com.jsm.nsnd.network.model.DetectionRequest
 import kotlinx.coroutines.CoroutineScope
@@ -328,8 +329,7 @@ class DetectionForegroundService : Service() {
         }
         // Same stage can contain multiple independent episodes. Only live, valid results enter here.
         val episode = sample.episodeId
-        if (sample.observationValid && sample.stage == 3 && sample.alertActive &&
-            sample.alarmAcknowledged != true && episode != null && smsEpisodes.add(episode)) {
+        if (AutomaticSmsPolicy.requiresDispatch(sample) && episode != null && smsEpisodes.add(episode)) {
             val eventSession = sessionId
             alarmScope.launch {
                 var confirmedContacts: List<com.jsm.nsnd.ui.contact.ContactItem>? = null
@@ -338,11 +338,10 @@ class DetectionForegroundService : Service() {
                 } } }
                 catch (cancelled: kotlinx.coroutines.CancellationException) {
                     if (cancelled !is kotlinx.coroutines.TimeoutCancellationException) throw cancelled
-                } catch (_: Exception) { /* Use the last explicitly confirmed account setting offline. */ }
+                } catch (_: Exception) { /* Use the account-scoped contact cache offline; there is no SMS opt-out. */ }
                 val current = latestDetection
                 if (SessionManager(this@DetectionForegroundService).getDetectionAccountKey() == account &&
-                    current?.account == account && current.sessionId == eventSession && sessionId == eventSession &&
-                    SmsSettingsStore.enabled(this@DetectionForegroundService)) {
+                    current?.account == account && current.sessionId == eventSession && sessionId == eventSession) {
                     EmergencySmsSender.send(this@DetectionForegroundService,confirmedContacts ?: ContactLocalStore.load(this@DetectionForegroundService),
                         "episode:$episode","3단계 자동 경보",account)
                 }

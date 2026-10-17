@@ -76,12 +76,26 @@
         <item>위험 상황 감지. 운전자 상태를 확인해 주세요.</item>
     </string-array>
 
+    <string name="co2_connecting">센서 연결 확인 중</string>
+    <string name="co2_no_reading">측정값 없음</string>
+    <string name="co2_waiting">새 센서 값을 기다리는 중</string>
+    <string name="co2_not_configured">서버의 아두이노 포트 설정이 필요합니다</string>
+    <string name="co2_disconnected">아두이노 연결을 확인해주세요</string>
+    <string name="co2_server_unavailable">센서 서버에 연결할 수 없습니다</string>
+    <string name="co2_api_unavailable">서버의 CO₂ API 업데이트가 필요합니다</string>
+    <string name="co2_login_required">로그인 후 센서 값을 확인할 수 있습니다</string>
+    <string name="co2_received_age">서버 수신 %1$d초 전</string>
+
     <!-- 마사지기 강도 설정 -->
     <string name="massager_title">마사지기 강도</string>
     <string name="massager_subtitle">저주파 마사지기 단계를 설정하세요</string>
     <string name="massager_stage_unit">단계</string>
     <string name="massager_save">저장</string>
     <string name="massager_saved">저장되었습니다</string>
+    <string name="massager_saving">저장 중…</string>
+    <string name="massager_saved_stage">%1$d단계를 이 휴대폰에 저장했습니다</string>
+    <string name="massager_save_failed">설정을 저장하지 못했습니다. 다시 시도해주세요.</string>
+    <string name="massager_save_hint">선택한 단계를 이 휴대폰에 저장합니다.</string>
 
     <!-- 수면 데이터 -->
     <string name="sleep_title">수면 데이터</string>

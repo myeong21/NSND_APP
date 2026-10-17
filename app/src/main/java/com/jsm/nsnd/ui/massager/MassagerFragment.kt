@@ -6,8 +6,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import com.jsm.nsnd.R
+import com.jsm.nsnd.data.session.SessionManager
 import com.jsm.nsnd.databinding.FragmentMassagerBinding
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MassagerFragment : Fragment() {
 
@@ -16,9 +21,12 @@ class MassagerFragment : Fragment() {
 
     // 단계 설정 (최소 1, 최대 5)
     // TODO: 실제 기기 스펙 확정 후 최대 단계 조정
-    private val minStage = 1
-    private val maxStage = 5
-    private var currentStage = 3
+    private val minStage = MassagerSettingsStore.MIN_STAGE
+    private val maxStage = MassagerSettingsStore.MAX_STAGE
+    private var currentStage = MassagerSettingsStore.DEFAULT_STAGE
+    private var savedStage: Int? = null
+    private var isSaving = false
+    private lateinit var account: String
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -32,6 +40,10 @@ class MassagerFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        account = SessionManager(requireContext()).getAccountStorageKey()
+        savedStage = MassagerSettingsStore.load(requireContext(), account)
+        currentStage = savedStage ?: MassagerSettingsStore.DEFAULT_STAGE
+        isSaving = false
         setupControls()
         updateStageDisplay()
     }
@@ -83,9 +95,20 @@ class MassagerFragment : Fragment() {
 
         // 버튼 활성화/비활성화
         binding.btnDecrease.alpha = if (currentStage <= minStage) 0.3f else 1.0f
-        binding.btnDecrease.isEnabled = currentStage > minStage
+        binding.btnDecrease.isEnabled = !isSaving && currentStage > minStage
         binding.btnIncrease.alpha = if (currentStage >= maxStage) 0.3f else 1.0f
-        binding.btnIncrease.isEnabled = currentStage < maxStage
+        binding.btnIncrease.isEnabled = !isSaving && currentStage < maxStage
+
+        val isSaved = currentStage == savedStage
+        binding.btnSaveMassager.isEnabled = !isSaving && !isSaved
+        binding.btnSaveMassager.setText(when {
+            isSaving -> R.string.massager_saving
+            isSaved -> R.string.massager_saved
+            else -> R.string.massager_save
+        })
+        binding.btnSaveMassager.backgroundTintList = requireContext().getColorStateList(
+            if (isSaved) R.color.status_safe else R.color.accent_primary
+        )
 
         // 단계별 숫자 색상 변경
         val stageColor = when {
@@ -101,12 +124,14 @@ class MassagerFragment : Fragment() {
     // 진행 바 너비 업데이트
     // ─────────────────────────────────────────
     private fun updateProgressBar() {
-        binding.progressTrack.post {
-            val trackWidth = binding.progressTrack.width
+        val b = binding
+        b.progressTrack.post {
+            if (_binding !== b) return@post
+            val trackWidth = b.progressTrack.width
             val fillWidth = (trackWidth * currentStage / maxStage.toFloat()).toInt()
-            val params = binding.progressFill.layoutParams
+            val params = b.progressFill.layoutParams
             params.width = fillWidth
-            binding.progressFill.layoutParams = params
+            b.progressFill.layoutParams = params
         }
     }
 
@@ -137,19 +162,30 @@ class MassagerFragment : Fragment() {
     // 단계 저장
     // ─────────────────────────────────────────
     private fun saveStage() {
-        // TODO: 젯슨 나노 서버에 마사지기 단계 설정 전송으로 교체
-        binding.btnSaveMassager.isEnabled = false
-        binding.btnSaveMassager.text = getString(R.string.massager_saved)
-        binding.btnSaveMassager.backgroundTintList =
-            requireContext().getColorStateList(R.color.status_safe)
-
-        binding.btnSaveMassager.postDelayed({
-            val currentBinding = _binding ?: return@postDelayed
-            currentBinding.btnSaveMassager.isEnabled = true
-            currentBinding.btnSaveMassager.text = getString(R.string.massager_save)
-            currentBinding.btnSaveMassager.backgroundTintList =
-                requireContext().getColorStateList(R.color.accent_primary)
-        }, 1500)
+        if (isSaving) return
+        val appContext = requireContext().applicationContext
+        if (SessionManager(appContext).getAccountStorageKey() != account) return
+        val stage = currentStage
+        val savingAccount = account
+        isSaving = true
+        updateStageDisplay()
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val saved = withContext(Dispatchers.IO) {
+                    MassagerSettingsStore.save(appContext, savingAccount, stage)
+                }
+                if (SessionManager(appContext).getAccountStorageKey() != savingAccount) return@launch
+                if (saved) {
+                    savedStage = stage
+                    Toast.makeText(appContext, getString(R.string.massager_saved_stage, stage), Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(appContext, R.string.massager_save_failed, Toast.LENGTH_LONG).show()
+                }
+            } finally {
+                isSaving = false
+                if (_binding != null) updateStageDisplay()
+            }
+        }
     }
 
     override fun onDestroyView() {

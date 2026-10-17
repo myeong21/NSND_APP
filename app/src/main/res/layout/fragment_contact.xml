@@ -13,7 +13,7 @@
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="20dp"
         android:layout_marginTop="8dp"
-        android:text="자동 SMS를 켜면 새 3단계 사건마다 등록된 연락처에 발송을 요청합니다."
+        android:text="새 3단계 위험 사건마다 등록한 모든 연락처로 SMS를 자동 발송합니다."
         android:textColor="@color/text_secondary"
         android:textSize="13sp"
         app:layout_constraintEnd_toEndOf="parent"
@@ -63,27 +63,28 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:fontFamily="sans-serif-medium"
-                    android:text="자동 발송 조건"
+                    android:text="3단계 위험 SMS 필수 자동 발송"
                     android:textColor="@color/text_primary"
                     android:textSize="13sp" />
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="연락처와 SMS 권한이 필요합니다. 전송 결과는 발송 이력에서 확인하세요."
+                    android:text="3단계 위험 시 등록한 모든 연락처로 자동 발송합니다. 연락처는 최소 1개를 유지해야 합니다."
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp" />
             </LinearLayout>
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
-    <com.google.android.material.switchmaterial.SwitchMaterial
-        android:id="@+id/switchAutoSms"
+    <Button
+        android:id="@+id/btnSmsPermission"
+        style="@style/Widget.NSND.Button.Secondary"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginHorizontal="20dp"
-        android:text="자동 SMS 사용"
-        android:textColor="@color/text_primary"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="8dp"
+        android:text="SMS 권한 허용"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toBottomOf="@id/cardContactGuide" />
@@ -97,7 +98,7 @@
         android:textSize="12sp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/switchAutoSms" />
+        app:layout_constraintTop_toBottomOf="@id/btnSmsPermission" />
 
     <Button
         android:id="@+id/btnSyncRecords"
@@ -185,7 +186,7 @@
             android:layout_height="54dp"
             android:layout_marginEnd="10dp"
             android:layout_weight="1"
-            android:text="테스트 발송"
+            android:text="SMS 테스트 발송"
             android:textSize="14sp" />
 
         <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton

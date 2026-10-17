@@ -30,11 +30,15 @@ class ContactAdapter(
             if (items.size <= 1) {
                 binding.btnDelete.alpha = 0.3f
                 binding.btnDelete.isEnabled = false
+                binding.btnDelete.contentDescription = "마지막 연락처는 삭제할 수 없습니다"
+                binding.btnDelete.setOnClickListener(null)
             } else {
                 binding.btnDelete.alpha = 1.0f
                 binding.btnDelete.isEnabled = true
+                binding.btnDelete.contentDescription = "연락처 삭제"
                 binding.btnDelete.setOnClickListener {
-                    onDelete(position)
+                    val current = bindingAdapterPosition
+                    if (items.size > 1 && current != RecyclerView.NO_POSITION) onDelete(current)
                 }
             }
         }

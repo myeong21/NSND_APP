@@ -88,7 +88,7 @@ class DetectionServiceIntegrationTest {
             await { !DetectionForegroundService.alarmUiState.sounding }
             assertTrue(fixture.acknowledgements.isEmpty())
             val account = SessionManager(context).getDetectionAccountKey()!!
-            assertTrue(SmsHistoryStore.history(context,account).isEmpty()) // Auto SMS is explicitly off in this fixture.
+            assertTrue(SmsHistoryStore.history(context,account).isEmpty()) // This fixture has no registered recipients; no SMS can be sent.
         }
     }
 

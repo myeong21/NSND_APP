@@ -20,16 +20,17 @@ import retrofit2.http.Query
 
 interface ApiService {
 
+    @GET("devices/telemetry")
+    suspend fun getDeviceTelemetry(
+        @Header("Authorization") token: String,
+    ): com.jsm.nsnd.network.model.DeviceTelemetryResponse
+
     @GET("detection/events")
     suspend fun recoverEvents(@Header("Authorization") token: String, @Query("after") after: Long,
         @Query("limit") limit: Int = 100): com.jsm.nsnd.network.model.RecoveryPage
 
     @GET("contacts/sms-settings")
     suspend fun getSmsSettings(@Header("Authorization") token: String): com.jsm.nsnd.network.model.SmsSettings
-
-    @PUT("contacts/sms-settings")
-    suspend fun updateSmsSettings(@Header("Authorization") token: String,
-        @Body body: com.jsm.nsnd.network.model.SmsSettingsUpdate): com.jsm.nsnd.network.model.SmsSettings
 
     @PUT("detection/events/{eventId}/location")
     suspend fun updateEventLocation(

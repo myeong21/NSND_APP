@@ -68,8 +68,9 @@ class SessionManager(private val context: Context) {
     suspend fun clearAfterWithdrawal() {
         val account = getDetectionAccountKey()
         account?.let { com.jsm.nsnd.data.local.AlarmStateStore.clearAccount(context,it) }
-        com.jsm.nsnd.ui.contact.SmsSettingsStore.disableLocally(context)
+        com.jsm.nsnd.ui.contact.SmsSettingsStore.clearAccount(context)
         com.jsm.nsnd.ui.contact.ContactLocalStore.clearAccount(context)
+        com.jsm.nsnd.ui.massager.MassagerSettingsStore.clearAccount(context)
         clear()
         account?.let { com.jsm.nsnd.data.local.LocalDetectionStore.get(context).deleteAccount(it) }
     }

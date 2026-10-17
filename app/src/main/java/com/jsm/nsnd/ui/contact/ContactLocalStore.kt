@@ -24,6 +24,7 @@ object ContactLocalStore {
     }
 
     fun save(context: Context, contacts: List<ContactItem>) {
+        SmsSettingsStore.contactsChanged()
         val array = JSONArray()
         contacts.forEach { item ->
             array.put(JSONObject().apply {

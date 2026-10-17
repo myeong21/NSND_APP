@@ -4,6 +4,13 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Match the centered eye/road mark and keep it inside the adaptive safe zone. -->
+    <group
+        android:pivotX="54"
+        android:pivotY="59.5"
+        android:scaleX="0.75"
+        android:scaleY="0.75"
+        android:translateY="-5.5">
     <path
         android:fillColor="@android:color/transparent"
         android:pathData="M20,50 Q54,20 88,50 Q74,72 54,72 Q34,72 20,50"
@@ -23,4 +30,5 @@
     <path
         android:fillColor="#FFFFFFFF"
         android:pathData="M53,70 L55,70 L56,75 L52,75 Z M52,78 L56,78 L58,87 L50,87 Z" />
+    </group>
 </vector>

@@ -36,8 +36,6 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
-import com.jsm.nsnd.network.RetrofitClient
-import com.jsm.nsnd.network.model.SmsSettingsUpdate
 import com.jsm.nsnd.data.local.LocalDetectionStore
 import com.jsm.nsnd.service.RecordSyncService
 
@@ -52,11 +50,11 @@ class ContactFragment : Fragment() {
     private val sessionManager by lazy { SessionManager(requireContext()) }
     private var isServerBusy = false
     private var lastSyncAt = 0L
-    private var renderingSmsSettings = false
-    private val autoSmsPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) updateAutomaticSms(true) else {
+    private val automaticSmsPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (isAdded && _binding != null) {
             renderSmsSettings()
-            Toast.makeText(requireContext(),"권한을 허용하지 않아 자동 SMS를 켜지 않았습니다.",Toast.LENGTH_LONG).show()
+            if (!granted) Toast.makeText(requireContext(),
+                "3단계 위험 SMS 자동 발송에 SMS 권한이 필요합니다. 권한을 허용해주세요.",Toast.LENGTH_LONG).show()
         }
     }
 
@@ -88,13 +86,8 @@ class ContactFragment : Fragment() {
         setupFab()
         setupSendButton()
         binding.btnSmsHistory.setOnClickListener { SmsHistoryDialog.show(requireContext()) }
-        binding.switchAutoSms.setOnCheckedChangeListener { _, checked ->
-            if (!renderingSmsSettings) {
-                if (isServerBusy) renderSmsSettings()
-                else if (checked && ContextCompat.checkSelfPermission(requireContext(),Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED)
-                    autoSmsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
-                else updateAutomaticSms(checked)
-            }
+        binding.btnSmsPermission.setOnClickListener {
+            automaticSmsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
         }
         binding.btnSyncRecords.setOnClickListener { showRecordSync() }
         renderSmsSettings()
@@ -103,10 +96,11 @@ class ContactFragment : Fragment() {
 
     private fun renderSmsSettings() {
         val view = _binding ?: return
-        renderingSmsSettings = true
-        view.switchAutoSms.isChecked = SmsSettingsStore.enabled(requireContext())
         view.tvSmsReadiness.text = SmsSettingsStore.readiness(requireContext())
-        renderingSmsSettings = false
+        view.btnSmsPermission.visibility = if (
+            requireContext().packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) &&
+            ContextCompat.checkSelfPermission(requireContext(),Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED
+        ) View.VISIBLE else View.GONE
     }
 
     private fun refreshSmsSettings() {
@@ -115,28 +109,7 @@ class ContactFragment : Fragment() {
             catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (_: Exception) {
                 renderSmsSettings()
-                _binding?.tvSmsReadiness?.append("\n설정 조회 실패 · 마지막으로 확인한 설정을 표시합니다.")
-            }
-        }
-    }
-
-    private fun updateAutomaticSms(enabled: Boolean) {
-        if (enabled && !requireContext().packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
-            Toast.makeText(requireContext(),"이 기기는 SMS 기능을 지원하지 않습니다.",Toast.LENGTH_LONG).show()
-            renderSmsSettings(); return
-        }
-        binding.switchAutoSms.isEnabled = false
-        setServerBusy(true)
-        viewLifecycleOwner.lifecycleScope.launch {
-            try {
-                SmsSettingsStore.update(requireContext(),enabled)
-                renderSmsSettings()
-            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-            catch (error: Exception) {
-                renderSmsSettings()
-                Toast.makeText(requireContext(),ApiErrorMessage.fromThrowable(error,"자동 SMS 설정"),Toast.LENGTH_LONG).show()
-            } finally {
-                if (_binding != null) { setServerBusy(false); binding.switchAutoSms.isEnabled = true }
+                _binding?.tvSmsReadiness?.append("\n연락처 조회 실패 · 기기에 저장된 연락처를 사용합니다.")
             }
         }
     }
@@ -477,6 +450,9 @@ class ContactFragment : Fragment() {
                 }
                 replaceContacts(contactList.toList())
                 dialog.dismiss()
+                if (existingItem == null && requireContext().packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) &&
+                    ContextCompat.checkSelfPermission(requireContext(),Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED)
+                    automaticSmsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
                 Toast.makeText(
                     requireContext(),
                     if (existingItem == null) "연락처를 서버에 저장했습니다" else "연락처를 수정했습니다",
@@ -500,24 +476,18 @@ class ContactFragment : Fragment() {
     // ─────────────────────────────────────────
     // 연락처 삭제
     // ─────────────────────────────────────────
-    private fun deleteContact(position: Int, confirmedLast: Boolean = false) {
+    private fun deleteContact(position: Int) {
+        if (contactList.size <= 1) {
+            Toast.makeText(requireContext(),"비상 연락처는 최소 1개를 유지해야 합니다. 마지막 연락처는 수정만 가능합니다.",Toast.LENGTH_LONG).show()
+            return
+        }
         val item = contactList.getOrNull(position) ?: return
         if (item.id <= 0) {
             contactList.removeAt(position)
-            if (contactList.isEmpty()) SmsSettingsStore.disableLocally(requireContext())
             renderSmsSettings()
             replaceContacts(contactList.toList())
             Toast.makeText(requireContext(), "이전하지 못한 연락처를 삭제했습니다", Toast.LENGTH_SHORT).show()
             syncContactsFromServer()
-            return
-        }
-        if (contactList.size <= 1 && !confirmedLast) {
-            AlertDialog.Builder(requireContext()).setTitle("마지막 연락처 삭제")
-                .setMessage("마지막 연락처를 삭제하면 자동 SMS도 꺼집니다. 졸음 감지와 경고음은 계속 사용할 수 있습니다.")
-                .setNegativeButton("취소",null).setPositiveButton("삭제") { _, _ ->
-                    val current = contactList.indexOfFirst { it.id == item.id }
-                    if (current >= 0) deleteContact(current,true)
-                }.show()
             return
         }
         setServerBusy(true)
@@ -535,7 +505,6 @@ class ContactFragment : Fragment() {
                         return
                     }
                     contactList.removeAll { it.id == item.id }
-                    if (contactList.isEmpty()) SmsSettingsStore.disableLocally(requireContext())
                     replaceContacts(contactList.toList())
                     renderSmsSettings()
                     refreshSmsSettings()
@@ -588,6 +557,7 @@ class ContactFragment : Fragment() {
         adapter.notifyDataSetChanged()
         sharedViewModel.contacts.value = contactList.toList()
         if (saveCache) ContactLocalStore.save(requireContext(), contactList)
+        renderSmsSettings()
     }
 
     private fun showServerError(message: String) {
