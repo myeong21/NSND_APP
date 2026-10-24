@@ -35,7 +35,6 @@ import com.jsm.nsnd.databinding.FragmentHomeBinding
 import com.jsm.nsnd.network.RetrofitClient
 import com.jsm.nsnd.network.confirmDetectionStopped
 import com.jsm.nsnd.network.model.DetectionRequest
-import com.jsm.nsnd.network.model.HealthResponse
 import com.jsm.nsnd.network.model.SessionEndRequest
 import com.jsm.nsnd.service.DetectionForegroundService
 import com.jsm.nsnd.service.LocationTracker
@@ -75,7 +74,7 @@ class HomeFragment : Fragment() {
     }
 
     private enum class ServerStatus {
-        CHECKING, READY, NOT_READY, OFFLINE
+        CHECKING, CONNECTED, OFFLINE
     }
 
     private var _binding: FragmentHomeBinding? = null
@@ -85,8 +84,7 @@ class HomeFragment : Fragment() {
     private var serverStatus = ServerStatus.CHECKING
     private var currentSessionId: Int = -1
 
-    private var healthResponse: HealthResponse? = null
-    private var healthCheckInProgress = false
+    private var serverCheckInProgress = false
     private var sessionActionInProgress = false
     private var sessionActionGeneration = 0
 
@@ -507,7 +505,7 @@ class HomeFragment : Fragment() {
                 b.layoutSessionActiveControls.visibility = View.GONE
                 b.layoutDetectingControls.visibility = View.GONE
 
-                b.btnStart.isEnabled = serverStatus == ServerStatus.READY
+                b.btnStart.isEnabled = serverStatus == ServerStatus.CONNECTED
             }
 
             DrivingState.SESSION_ACTIVE -> {
@@ -628,25 +626,29 @@ class HomeFragment : Fragment() {
     // 세션 복구 로직 (onResume 시 실행)
     // ─────────────────────────────────────────
     private fun checkServerStatus(showResultToast: Boolean = false) {
-        if (healthCheckInProgress) return
-        healthCheckInProgress = true
+        if (serverCheckInProgress) return
+        serverCheckInProgress = true
+        val requestedToken = token
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val response = withTimeout(8_000L) {
-                    RetrofitClient.apiService(requireContext()).healthCheck()
+                // /health opens the server camera to probe it; home only checks connectivity.
+                withTimeout(8_000L) {
+                    RetrofitClient.apiService(requireContext()).getCurrentUser(RetrofitClient.authHeader(requestedToken))
                 }
-                healthResponse = response
-                serverStatus = if (response.models_ready && response.camera_available) {
-                    ServerStatus.READY
-                } else {
-                    ServerStatus.NOT_READY
-                }
+                if (requestedToken != token) return@launch
+                serverStatus = ServerStatus.CONNECTED
                 updateServerStatusUi()
 
                 // 현재 세션 상태 복구
                 recoverActiveSession(showResultToast)
             } catch (e: Exception) {
+                if (e is CancellationException && e !is TimeoutCancellationException) throw e
+                if (requestedToken != token) return@launch
+                if (e is HttpException && e.code() == 401) {
+                    handleSessionExpired()
+                    return@launch
+                }
                 serverStatus = ServerStatus.OFFLINE
                 updateServerStatusUi()
                 if (showResultToast && isAdded) {
@@ -657,7 +659,7 @@ class HomeFragment : Fragment() {
                     ).show()
                 }
             } finally {
-                healthCheckInProgress = false
+                serverCheckInProgress = false
             }
         }
     }
@@ -731,6 +733,9 @@ class HomeFragment : Fragment() {
         val b = _binding ?: return
         val serverAddress = "${ServerConfig.getIp(requireContext())}:8000"
         val checkedTime = SimpleDateFormat("HH:mm:ss", Locale.KOREAN).format(Date())
+        if (drivingState == DrivingState.IDLE) {
+            b.btnStart.isEnabled = serverStatus == ServerStatus.CONNECTED && !sessionActionInProgress
+        }
 
         when (serverStatus) {
             ServerStatus.CHECKING -> {
@@ -741,27 +746,13 @@ class HomeFragment : Fragment() {
                 b.tvSystemAvailabilityDescription.text = "서버 응답 대기"
                 b.tvServerMeta.text = "$serverAddress · 확인 중"
             }
-            ServerStatus.READY -> {
+            ServerStatus.CONNECTED -> {
                 b.layoutServerStatusIcon.setBackgroundResource(R.drawable.bg_icon_safe)
                 b.ivServerStatus.setImageResource(R.drawable.ic_status_online)
                 b.ivServerStatus.setColorFilter(requireContext().getColor(R.color.status_safe))
-                b.tvSystemAvailability.text = "감지 준비 완료"
-                b.tvSystemAvailabilityDescription.text = "운전 시작 후 감지를 켜세요."
+                b.tvSystemAvailability.text = "서버 연결됨"
+                b.tvSystemAvailabilityDescription.text = "카메라·모델은 감지 시작 시 확인합니다."
                 b.tvServerMeta.text = "$serverAddress · $checkedTime 확인"
-                if (drivingState == DrivingState.IDLE) b.btnStart.isEnabled = true
-            }
-            ServerStatus.NOT_READY -> {
-                b.layoutServerStatusIcon.setBackgroundResource(R.drawable.bg_icon_danger)
-                b.ivServerStatus.setImageResource(R.drawable.ic_status_offline)
-                b.ivServerStatus.setColorFilter(requireContext().getColor(R.color.status_warn))
-                b.tvSystemAvailability.text = "감지 준비 필요"
-                val health = healthResponse
-                b.tvSystemAvailabilityDescription.text = when {
-                    health?.models_ready != true -> "모델 준비 필요"
-                    health.camera_available != true -> "카메라 연결 확인"
-                    else -> "감지 상태 확인"
-                }
-                b.tvServerMeta.text = "$serverAddress · $checkedTime 점검 필요"
             }
             ServerStatus.OFFLINE -> {
                 b.layoutServerStatusIcon.setBackgroundResource(R.drawable.bg_icon_danger)

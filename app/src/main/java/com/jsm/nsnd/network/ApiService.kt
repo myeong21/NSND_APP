@@ -47,6 +47,9 @@ interface ApiService {
     @GET("health")
     suspend fun healthCheck(): HealthResponse
 
+    @GET("auth/me")
+    suspend fun getCurrentUser(@Header("Authorization") token: String): com.jsm.nsnd.data.api.UserResponse
+
     @GET("report/summary")
     suspend fun getReportSummary(
         @Header("Authorization") token: String,

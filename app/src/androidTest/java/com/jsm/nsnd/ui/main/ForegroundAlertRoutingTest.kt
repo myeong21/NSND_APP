@@ -29,6 +29,7 @@ class ForegroundAlertRoutingTest {
         val context = instrumentation.targetContext
         val prefs = context.getSharedPreferences("nsnd_prefs", Context.MODE_PRIVATE)
         val saved = prefs.all.toMap()
+        val requests = java.util.concurrent.CopyOnWriteArrayList<String>()
         val server = ServerSocket(8000) // Fail instead of interfering if another fixture owns the port.
         var scenario: ActivityScenario<MainActivity>? = null
         val worker = thread(isDaemon = true) {
@@ -37,6 +38,7 @@ class ForegroundAlertRoutingTest {
                     server.accept().use { client ->
                         val reader = client.getInputStream().bufferedReader()
                         val path = reader.readLine()?.split(" ")?.getOrNull(1).orEmpty()
+                        requests.add(path)
                         while (!reader.readLine().isNullOrEmpty()) { }
                         val body = when {
                             path == "/auth/me" -> """{"id":99101,"username":"fixture","name":"Fixture","emergency_contact":null}"""
@@ -75,6 +77,15 @@ class ForegroundAlertRoutingTest {
             }
             scenario = ActivityScenario.launch(Intent(context, MainActivity::class.java))
             scenario.moveToState(Lifecycle.State.RESUMED)
+            val connectionDeadline = SystemClock.elapsedRealtime() + 5_000
+            var connected = false
+            while (!connected && SystemClock.elapsedRealtime() < connectionDeadline) {
+                scenario.onActivity {
+                    connected = it.findViewById<android.widget.TextView>(R.id.tvSystemAvailability).text.toString() == "서버 연결됨"
+                }
+                if (!connected) SystemClock.sleep(25)
+            }
+            assertTrue("home must check connectivity without probing the camera", connected)
             for (tab in listOf(R.id.homeFragment, R.id.contactFragment, R.id.massagerFragment, R.id.sleepDataFragment, R.id.mapFragment)) {
                 scenario.onActivity { it.findViewById<BottomNavigationView>(R.id.bottomNavigation).selectedItemId = tab }
                 broadcast(55102)
@@ -92,6 +103,16 @@ class ForegroundAlertRoutingTest {
                 while (AlertOverlayActivity.isOpen && SystemClock.elapsedRealtime() < closeDeadline) SystemClock.sleep(25)
                 assertFalse(AlertOverlayActivity.isOpen)
             }
+            scenario.onActivity { it.findViewById<BottomNavigationView>(R.id.bottomNavigation).selectedItemId = R.id.homeFragment }
+            // A fresh server check still recovers the session and never touches /health.
+            val previousChecks = requests.count { it == "/sessions/current" }
+            val refreshDeadline = SystemClock.elapsedRealtime() + 5_000
+            while (requests.count { it == "/sessions/current" } <= previousChecks && SystemClock.elapsedRealtime() < refreshDeadline) {
+                scenario.onActivity { it.findViewById<View>(R.id.btnRefreshServer).performClick() }
+                SystemClock.sleep(50)
+            }
+            assertTrue("session recovery must remain active", requests.count { it == "/sessions/current" } > previousChecks)
+            assertFalse("home visits and refresh must not open the server camera", requests.any { it == "/health" })
         } finally {
             instrumentation.runOnMainSync {
                 ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED)
