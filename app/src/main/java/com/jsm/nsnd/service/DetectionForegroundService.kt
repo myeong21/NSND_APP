@@ -328,6 +328,7 @@ class DetectionForegroundService : Service() {
             if (alarmUiState.ackPending) publishAlarm(alarmUiState.copy(ackPending=false,error=null))
         }
         // Same stage can contain multiple independent episodes. Only live, valid results enter here.
+        EmergencyVideoCaller.send(this, sample, account, sessionId)
         val episode = sample.episodeId
         if (AutomaticSmsPolicy.requiresDispatch(sample) && episode != null && smsEpisodes.add(episode)) {
             val eventSession = sessionId

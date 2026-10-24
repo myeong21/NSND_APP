@@ -20,6 +20,7 @@ import com.jsm.nsnd.data.api.TokenResponse
 import com.jsm.nsnd.data.session.ServerConfig
 import com.jsm.nsnd.data.session.SessionManager
 import com.jsm.nsnd.databinding.ActivityLoginBinding
+import com.jsm.nsnd.service.EmergencyVideoCaller
 import com.jsm.nsnd.ui.main.MainActivity
 import com.jsm.nsnd.ui.common.ApiErrorMessage
 import retrofit2.Call
@@ -101,6 +102,7 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun missingRuntimePermissions(): List<String> = buildList {
+        addAll(EmergencyVideoCaller.missingPermissions(this@LoginActivity))
         if (ContextCompat.checkSelfPermission(
                 this@LoginActivity,
                 Manifest.permission.SEND_SMS
@@ -119,13 +121,19 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun showRuntimePermissionRequiredDialog(missing: List<String>) {
+        val phoneRequired = EmergencyVideoCaller.missingPermissions(this).isNotEmpty()
         val names = buildList {
+            if (Manifest.permission.CALL_PHONE in missing) add("3단계 자동 영상통화 발신")
+            if (Manifest.permission.READ_PHONE_STATE in missing) add("통화 중 중복 발신 방지를 위한 통화 상태 확인")
             if (Manifest.permission.SEND_SMS in missing) add("긴급 SMS 발송")
             if (Manifest.permission.POST_NOTIFICATIONS in missing) add("백그라운드 경보 알림")
         }.joinToString(", ")
         AlertDialog.Builder(this)
-            .setTitle("사용할 수 없는 경보 기능")
-            .setMessage("다음 권한이 없어 해당 기능이 제한됩니다.\n\n$names\n\n설정에서 허용할 수 있습니다.")
+            .setTitle(if (phoneRequired) "필수 전화 권한 허용" else "사용할 수 없는 경보 기능")
+            .setMessage(if (phoneRequired)
+                "졸음 3단계 위험 사건마다 등록 연락처 중 한 명에게 자동 영상통화를 요청합니다. " +
+                    "통화 중에는 발신하지 않습니다.\n\n$names\n\n앱을 사용하려면 설정에서 전화 권한을 허용해주세요."
+                else "다음 권한이 없어 해당 기능이 제한됩니다.\n\n$names\n\n설정에서 허용할 수 있습니다.")
             .setCancelable(false)
             .setPositiveButton("앱 설정 열기") { _, _ ->
                 appSettingsLauncher.launch(
@@ -134,7 +142,9 @@ class LoginActivity : AppCompatActivity() {
                     }
                 )
             }
-            .setNegativeButton("제한된 상태로 계속") { _, _ -> checkFullScreenAlertPermission() }
+            .setNegativeButton(if (phoneRequired) "앱 종료" else "제한된 상태로 계속") { _, _ ->
+                if (phoneRequired) finishAffinity() else checkFullScreenAlertPermission()
+            }
             .show()
     }
 
@@ -181,6 +191,10 @@ class LoginActivity : AppCompatActivity() {
 
     private fun continueStartup() {
         if (startupContinued) return
+        if (EmergencyVideoCaller.missingPermissions(this).isNotEmpty()) {
+            reviewRuntimePermissions()
+            return
+        }
         startupContinued = true
         if (sessionManager.isLoggedIn()) {
             validateSavedLogin()
@@ -188,6 +202,7 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun login() {
+        if (!startupContinued || EmergencyVideoCaller.missingPermissions(this).isNotEmpty()) return
         val username = binding.etLoginId.text.toString().trim()
         val password = binding.etLoginPassword.text.toString().trim()
 
@@ -258,6 +273,10 @@ class LoginActivity : AppCompatActivity() {
     ) ?: "android-unknown"
 
     private fun goMain() {
+        if (EmergencyVideoCaller.missingPermissions(this).isNotEmpty()) {
+            reviewRuntimePermissions()
+            return
+        }
         startActivity(Intent(this, MainActivity::class.java))
         finish()
     }

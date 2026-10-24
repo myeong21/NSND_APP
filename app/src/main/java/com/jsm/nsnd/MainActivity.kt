@@ -33,6 +33,7 @@ import com.jsm.nsnd.data.session.SessionManager
 import com.jsm.nsnd.ui.auth.LoginActivity
 import com.jsm.nsnd.ui.common.ApiErrorMessage
 import com.jsm.nsnd.service.DetectionForegroundService
+import com.jsm.nsnd.service.EmergencyVideoCaller
 import com.jsm.nsnd.data.local.DetectionMessageParser
 import com.jsm.nsnd.ui.overlay.AlertOverlayActivity
 import androidx.core.content.ContextCompat
@@ -159,6 +160,16 @@ class MainActivity : AppCompatActivity() {
         unregisterReceiver(detectionReceiver)
         authHandler.removeCallbacks(authCheckRunnable)
         super.onStop()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (EmergencyVideoCaller.missingPermissions(this).isNotEmpty()) {
+            startActivity(Intent(this, LoginActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            })
+            finish()
+        }
     }
 
     private fun validateActiveLogin() {

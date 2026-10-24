@@ -69,6 +69,10 @@ class ForegroundAlertRoutingTest {
             val payload = Base64.encodeToString("""{"sub":"99101","account_key":"${"a".repeat(64)}"}""".toByteArray(), Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
             prefs.edit().putString("access_token", "fixture.$payload.signature")
                 .putString("server_ip", "127.0.0.1").putInt("active_session_id", 55101).commit()
+            for (permission in listOf(android.Manifest.permission.CALL_PHONE, android.Manifest.permission.READ_PHONE_STATE)) {
+                android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(
+                    "pm grant ${context.packageName} $permission")).use { it.readBytes() }
+            }
             scenario = ActivityScenario.launch(Intent(context, MainActivity::class.java))
             scenario.moveToState(Lifecycle.State.RESUMED)
             for (tab in listOf(R.id.homeFragment, R.id.contactFragment, R.id.massagerFragment, R.id.sleepDataFragment, R.id.mapFragment)) {

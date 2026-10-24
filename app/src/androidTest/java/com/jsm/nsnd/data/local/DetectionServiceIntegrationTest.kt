@@ -277,6 +277,10 @@ class DetectionServiceIntegrationTest {
                 .putString("access_token", "test.$payload.fixture").putInt("active_session_id", 55101).commit()
             val account = SessionManager(context).getDetectionAccountKey()!!
             fixture.start()
+            for (permission in listOf(android.Manifest.permission.CALL_PHONE, android.Manifest.permission.READ_PHONE_STATE)) {
+                android.os.ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand(
+                    "pm grant ${context.packageName} $permission")).use { it.readBytes() }
+            }
             scenario = ActivityScenario.launch(MainActivity::class.java)
             scenario.onActivity { activity ->
                 activity.findViewById<BottomNavigationView>(R.id.bottomNavigation).selectedItemId = R.id.sleepDataFragment
