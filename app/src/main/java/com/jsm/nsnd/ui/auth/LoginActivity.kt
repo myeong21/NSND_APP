@@ -1,7 +1,6 @@
 package com.jsm.nsnd.ui.auth
 
 import android.Manifest
-import android.app.NotificationManager
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -11,7 +10,6 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import com.jsm.nsnd.R
 import com.jsm.nsnd.data.api.ApiClient
@@ -23,6 +21,7 @@ import com.jsm.nsnd.databinding.ActivityLoginBinding
 import com.jsm.nsnd.service.EmergencyVideoCaller
 import com.jsm.nsnd.ui.main.MainActivity
 import com.jsm.nsnd.ui.common.ApiErrorMessage
+import com.jsm.nsnd.ui.common.AppPermissions
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -101,24 +100,15 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
-    private fun missingRuntimePermissions(): List<String> = buildList {
-        addAll(EmergencyVideoCaller.missingPermissions(this@LoginActivity))
-        if (ContextCompat.checkSelfPermission(
-                this@LoginActivity,
-                Manifest.permission.SEND_SMS
-            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
-        ) {
-            add(Manifest.permission.SEND_SMS)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(
-                this@LoginActivity,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
-        ) {
-            add(Manifest.permission.POST_NOTIFICATIONS)
+    override fun onResume() {
+        super.onResume()
+        if (startupContinued && AppPermissions.needsReview(this)) {
+            startupContinued = false
+            startRequiredPermissionFlow()
         }
     }
+
+    private fun missingRuntimePermissions(): List<String> = AppPermissions.missingRuntimePermissions(this)
 
     private fun showRuntimePermissionRequiredDialog(missing: List<String>) {
         val phoneRequired = EmergencyVideoCaller.missingPermissions(this).isNotEmpty()
@@ -127,6 +117,8 @@ class LoginActivity : AppCompatActivity() {
             if (Manifest.permission.READ_PHONE_STATE in missing) add("통화 중 중복 발신 방지를 위한 통화 상태 확인")
             if (Manifest.permission.SEND_SMS in missing) add("긴급 SMS 발송")
             if (Manifest.permission.POST_NOTIFICATIONS in missing) add("백그라운드 경보 알림")
+            if (Manifest.permission.ACCESS_FINE_LOCATION in missing || Manifest.permission.ACCESS_COARSE_LOCATION in missing)
+                add("주행 거리·감지 위치 기록 및 지도 표시를 위한 위치 접근")
         }.joinToString(", ")
         AlertDialog.Builder(this)
             .setTitle(if (phoneRequired) "필수 전화 권한 허용" else "사용할 수 없는 경보 기능")
@@ -158,13 +150,7 @@ class LoginActivity : AppCompatActivity() {
         if (missing.isEmpty()) checkFullScreenAlertPermission() else showRuntimePermissionRequiredDialog(missing)
     }
 
-    private fun canUseFullScreenAlert(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            getSystemService(NotificationManager::class.java).canUseFullScreenIntent()
-        } else {
-            true
-        }
-    }
+    private fun canUseFullScreenAlert(): Boolean = AppPermissions.canUseFullScreenAlert(this)
 
     private fun showFullScreenPermissionRequiredDialog() {
         AlertDialog.Builder(this)
@@ -195,6 +181,7 @@ class LoginActivity : AppCompatActivity() {
             reviewRuntimePermissions()
             return
         }
+        AppPermissions.markReviewed(this)
         startupContinued = true
         if (sessionManager.isLoggedIn()) {
             validateSavedLogin()

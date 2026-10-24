@@ -281,6 +281,7 @@ class DetectionServiceIntegrationTest {
                 android.os.ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand(
                     "pm grant ${context.packageName} $permission")).use { it.readBytes() }
             }
+            com.jsm.nsnd.ui.common.AppPermissions.markReviewed(context) // Keep this fixture's deliberate lack of location permission.
             scenario = ActivityScenario.launch(MainActivity::class.java)
             scenario.onActivity { activity ->
                 activity.findViewById<BottomNavigationView>(R.id.bottomNavigation).selectedItemId = R.id.sleepDataFragment

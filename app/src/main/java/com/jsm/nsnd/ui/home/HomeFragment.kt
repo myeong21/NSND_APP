@@ -1,12 +1,9 @@
 package com.jsm.nsnd.ui.home
 
-import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -16,7 +13,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -108,25 +104,6 @@ class HomeFragment : Fragment() {
 
     private val contactList = mutableListOf<ContactItem>()
     private val sharedViewModel: SharedContactViewModel by activityViewModels()
-
-    // 위치 권한 요청
-    private val locationPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
-            val fine = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
-            val coarse = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
-            if (fine || coarse) {
-                LocationTracker.startTracking(requireContext())
-                if (drivingState == DrivingState.DETECTING && currentSessionId > 0) {
-                    startDetectionService(currentSessionId)
-                }
-            } else {
-                Toast.makeText(context, "위치 권한이 없어 감지 기록은 위치 없이 저장됩니다.", Toast.LENGTH_LONG).show()
-            }
-        }
-
-    // 알림 권한 요청 (Android 13+)
-    private val notificationPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     // 감지 백그라운드 브로드캐스트 리시버
     private val detectionReceiver = object : BroadcastReceiver() {
@@ -301,16 +278,11 @@ class HomeFragment : Fragment() {
         binding.btnStart.isEnabled = false
         binding.btnStart.text = "세션 시작 중…"
 
-        // 위치 권한 확인 및 요청
-        if (!LocationTracker.hasLocationPermission(requireContext())) {
-            locationPermissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
-        } else {
+        // Permission requests are completed at app startup, before driving begins.
+        if (LocationTracker.hasLocationPermission(requireContext())) {
             LocationTracker.startTracking(requireContext())
+        } else {
+            Toast.makeText(context, "위치 권한이 없어 감지 기록은 위치 없이 저장됩니다.", Toast.LENGTH_LONG).show()
         }
 
         viewLifecycleOwner.lifecycleScope.launch {
@@ -827,11 +799,6 @@ class HomeFragment : Fragment() {
     }
 
     private fun startDetectionService(sessionId: Int) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
         ContextCompat.startForegroundService(
             requireContext(),
             Intent(requireContext(), DetectionForegroundService::class.java).apply {

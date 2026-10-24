@@ -75,6 +75,7 @@ class ForegroundAlertRoutingTest {
                 android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(
                     "pm grant ${context.packageName} $permission")).use { it.readBytes() }
             }
+            com.jsm.nsnd.ui.common.AppPermissions.markReviewed(context) // Startup's limited-operation choice is outside this routing test.
             scenario = ActivityScenario.launch(Intent(context, MainActivity::class.java))
             scenario.moveToState(Lifecycle.State.RESUMED)
             val connectionDeadline = SystemClock.elapsedRealtime() + 5_000
