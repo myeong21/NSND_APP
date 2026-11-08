@@ -37,6 +37,7 @@ import com.jsm.nsnd.service.LocationTracker
 import com.jsm.nsnd.ui.SharedContactViewModel
 import com.jsm.nsnd.ui.auth.LoginActivity
 import com.jsm.nsnd.ui.common.ApiErrorMessage
+import com.jsm.nsnd.ui.common.DrivingSessionTimer
 import com.jsm.nsnd.ui.contact.ContactItem
 import com.jsm.nsnd.ui.contact.ContactLocalStore
 import com.jsm.nsnd.ui.overlay.AlertOverlayActivity
@@ -97,7 +98,7 @@ class HomeFragment : Fragment() {
 
     // 주행 시간 타이머
     private var timerJob: Job? = null
-    private var sessionStartTimeMs: Long = 0L
+    private val sessionTimer = DrivingSessionTimer(SystemClock::elapsedRealtime)
 
     private val sessionManager by lazy { SessionManager(requireContext()) }
     private val token: String get() = sessionManager.getToken().orEmpty()
@@ -292,7 +293,7 @@ class HomeFragment : Fragment() {
                 currentSessionId = resp.session_id
                 sessionManager.saveActiveSessionId(currentSessionId)
 
-                sessionStartTimeMs = com.jsm.nsnd.ui.common.ServerTime.millis(resp.started_at) ?: System.currentTimeMillis()
+                sessionTimer.start()
                 startTimer()
 
                 transitionTo(DrivingState.SESSION_ACTIVE)
@@ -513,7 +514,7 @@ class HomeFragment : Fragment() {
         stopTimer()
         timerJob = viewLifecycleOwner.lifecycleScope.launch {
             while (isActive) {
-                val elapsed = (System.currentTimeMillis() - sessionStartTimeMs) / 1000
+                val elapsed = sessionTimer.elapsedSeconds()
                 val hours = elapsed / 3600
                 val minutes = (elapsed % 3600) / 60
                 val seconds = elapsed % 60
@@ -649,12 +650,20 @@ class HomeFragment : Fragment() {
             )
             if (sessionActionInProgress || generation != sessionActionGeneration ||
                 account != sessionManager.getDetectionAccountKey()) return
+            // New servers calculate this with their own clock, avoiding phone/server clock skew.
+            // Older servers may omit the duration. Never subtract timestamps across clocks.
+            val serverElapsedSeconds = (current.elapsed_seconds ?: 0L).coerceAtLeast(0L)
+            val restoredSeconds = if (currentSessionId == current.id) {
+                maxOf(serverElapsedSeconds, sessionTimer.elapsedSeconds())
+            } else {
+                serverElapsedSeconds
+            }
             currentSessionId = current.id
             sessionManager.saveActiveSessionId(currentSessionId)
             LocationTracker.restoreSession(requireContext(), current.distance_meters)
 
             // 타이머 재개
-            sessionStartTimeMs = com.jsm.nsnd.ui.common.ServerTime.millis(current.started_at) ?: System.currentTimeMillis()
+            sessionTimer.start(restoredSeconds)
             startTimer()
             _binding?.tvDriveDistance?.text = String.format(Locale.US, "%.2f km", LocationTracker.getDistanceKm())
             LocationTracker.startTracking(requireContext())
